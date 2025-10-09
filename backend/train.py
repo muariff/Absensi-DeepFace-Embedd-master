@@ -42,7 +42,7 @@ def create_embeddings_table(conn):
             CREATE TABLE {DB_TABLE_EMBEDDINGS} (
                 id SERIAL PRIMARY KEY,
                 name VARCHAR(100) NOT NULL,
-                jobdesk VARCHAR(100),
+                instansi VARCHAR(100),
                 image_path VARCHAR(255) NOT NULL,
                 embedding vector(512) NOT NULL
             );
@@ -83,7 +83,7 @@ def index_dataset():
             
         embeddings_to_insert = []
         person_success_count = 0
-        jobdesk = "Intern" # Asumsi jobdesk default, ganti jika Anda punya tabel jobdesk terpisah
+        instansi = "Intern" # Asumsi instansi default, ganti jika Anda punya tabel instansi terpisah
         
         print(f"\n   -> Memproses {person_name}...")
         
@@ -114,7 +114,7 @@ def index_dataset():
                     vector_string = "[" + ",".join(map(str, embedding_vector)) + "]"
                     
                     # Tambahkan data ke batch untuk insertion
-                    embeddings_to_insert.append((person_name, jobdesk, filepath, vector_string))
+                    embeddings_to_insert.append((person_name, instansi, filepath, vector_string))
                     person_success_count += 1
                 else:
                     # Ini terjadi jika DeepFace benar-benar gagal mengekstrak fitur meskipun enforce_detection=False
@@ -127,12 +127,12 @@ def index_dataset():
         # 2. INSERT BATCH KE DATABASE SETELAH SELESAI SATU ORANG
         if embeddings_to_insert:
             # Query untuk batch insertion
-            insert_query = f"INSERT INTO {DB_TABLE_EMBEDDINGS} (name, jobdesk, image_path, embedding) VALUES (%s, %s, %s, %s::vector)"
+            insert_query = f"INSERT INTO {DB_TABLE_EMBEDDINGS} (name, instansi, image_path, embedding) VALUES (%s, %s, %s, %s::vector)"
             
             # Prepare data: hilangkan format vector_string karena sudah di-cast di query
-            data_to_insert = [(name, jobdesk, path, vector_str) 
-                              for name, jobdesk, path, vector_str in embeddings_to_insert]
-            
+            data_to_insert = [(name, instansi, path, vector_str) 
+                              for name, instansi, path, vector_str in embeddings_to_insert]
+
             try:
                 cur.executemany(insert_query, data_to_insert)
                 conn.commit() # <<< COMMIT INI SANGAT PENTING
