@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Daftar Hadir - Absensi Intern</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/daisyui"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Inter&display=swap" rel="stylesheet">
+  <link href="/static/style.css" rel="stylesheet">
+  <!-- <script src="auth.js"></script> -->
+</head>
+<body class="flex h-screen bg-white">
+<!-- <script>checkAuth();</script> -->
+
+<!-- Sidebar -->
+<aside class="w-64 sidebar flex flex-col items-start py-8 px-6 space-y-6 shadow-lg">
+  <div class="text-2xl font-bold mb-4 self-center">
+    <span class="text-center block mt-2">ADMIN</span>
+  </div>
+  <nav class="w-full flex flex-col gap-4 text-white font-medium text-base">
+    <a href="main.html" class="w-full flex items-center gap-3 px-4 py-2 rounded-lg sidebar-link">
+      <span>🏠</span> <span>Dashboard</span>
+    </a>
+    <a href="data.html" class="w-full flex items-center gap-3 px-4 py-2 rounded-lg sidebar-link">
+      <span>🧑‍💼</span> <span>List Data Intern</span>
+    </a>
+    <a href="daftarhadir.html" class="w-full flex items-center gap-3 px-4 py-2 rounded-lg sidebar-link active">
+      <span>🧾</span> <span>Daftar Hadir</span>
+    </a>
+    <button onclick="signOut()" class="w-full flex items-center gap-3 px-4 py-2 rounded-lg bg-white text-red-700 hover:bg-red-100 font-semibold transition">
+      <span>🚪</span> <span>Sign Out</span>
+    </button>
+  </nav>
+</aside>
+
+<!-- Main Content -->
+<main class="flex-1 p-8 overflow-y-auto main-content">
+  <h1 class="text-3xl font-bold text-red-700 mb-6">Daftar Hadir</h1>
+  
+  <!-- System Info Card -->
+  <div class="stat-card p-6 space-y-4 mb-6">
+    <h2 class="text-xl font-semibold text-gray-700">📅 Informasi Sistem</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div class="p-4 bg-blue-50 rounded-lg">
+        <div class="text-sm text-gray-600 mb-1">Sistem Aktif Sejak:</div>
+        <div class="font-semibold text-blue-700" id="systemStartDate">-</div>
+      </div>
+      <div class="p-4 bg-green-50 rounded-lg">
+        <div class="text-sm text-gray-600 mb-1">Tanggal Hari Ini:</div>
+        <div class="font-semibold text-green-700" id="currentDate">-</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Monthly Attendance Card -->
+  <div class="stat-card p-6 space-y-4 mb-6">
+    <h2 class="text-xl font-semibold text-gray-700">📊 Total Kehadiran Bulan</h2>
+    <div class="flex gap-4 items-center">
+      <select id="monthSelector" class="form-input" onchange="loadMonthlyAttendance()">
+        <option value="">Pilih Bulan</option>
+      </select>
+      <select id="yearSelector" class="form-input" onchange="loadMonthlyAttendance()">
+        <option value="">Pilih Tahun</option>
+      </select>
+    </div>
+    <div id="monthlyAttendanceData" class="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div class="text-center p-4 bg-blue-50 rounded-lg">
+        <div class="text-2xl font-bold text-blue-600" id="totalAttendance">-</div>
+        <div class="text-sm text-gray-600">Total Absensi</div>
+      </div>
+      <div class="text-center p-4 bg-green-50 rounded-lg">
+        <div class="text-2xl font-bold text-green-600" id="uniqueDays">-</div>
+        <div class="text-sm text-gray-600">Hari Aktif</div>
+      </div>
+      <div class="text-center p-4 bg-purple-50 rounded-lg">
+        <div class="text-2xl font-bold text-purple-600" id="avgDaily">-</div>
+        <div class="text-sm text-gray-600">Rata-rata/Hari</div>
+      </div>
+    </div>
+    <button onclick="viewWeeklyAttendance()" class="btn bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600">
+      📅 Lihat Data Seminggu
+    </button>
+  </div>
+
+  <!-- Today's Active Interns Card -->
+  <div class="stat-card p-6 space-y-4 mb-6">
+    <h2 class="text-xl font-semibold text-gray-700">👥 Intern Aktif Hari Ini</h2>
+    <div class="text-center p-4 bg-yellow-50 rounded-lg mb-4">
+      <div class="text-2xl font-bold text-yellow-600" id="todayActiveCount">-</div>
+      <div class="text-sm text-gray-600">Intern yang sudah absen hari ini</div>
+    </div>
+    <div id="todayActiveInterns" class="space-y-3">
+      <div class="text-center text-gray-500 py-4">
+        <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-red-700 mx-auto mb-4"></div>
+        <p>Memuat data intern aktif...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Weekly Attendance Modal -->
+  <div id="weeklyModal" class="fixed inset-0 bg-black bg-opacity-50 hidden z-50">
+    <div class="flex items-center justify-center min-h-screen p-4">
+      <div class="bg-white rounded-lg max-w-4xl w-full max-h-[80vh] overflow-y-auto">
+        <div class="p-6">
+          <div class="flex justify-between items-center mb-4">
+            <h3 class="text-xl font-semibold">📅 Data Absensi Seminggu</h3>
+            <button onclick="closeWeeklyModal()" class="text-gray-500 hover:text-gray-700 text-2xl">&times;</button>
+          </div>
+          <div id="weeklyAttendanceData" class="space-y-4">
+            <!-- Data akan dimuat di sini -->
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stat-card p-6 space-y-4">
+    <input id="absensiSearch" type="text" placeholder="🔍 Cari absensi intern..." class="form-input search-input" oninput="filterAbsensi()" />
+    <select id="absensiSelector" class="form-input date-selector" onchange="updateAbsensiUI()">
+      <option value="">-- Pilih Kegiatan --</option>
+    </select>
+    <div id="attendanceList" class="mt-6 grid grid-cols-1 gap-6">
+      <div class="text-center text-gray-500 py-8">
+        <p>📅 Pilih tanggal untuk melihat daftar hadir</p>
+        <p class="text-sm mt-2">Dropdown akan menampilkan tanggal dari sistem aktif hingga hari ini</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Toast Container -->
+<div id="toastContainer" class="fixed bottom-6 right-6 space-y-2 z-50"></div>
+
+<script>
+  const BACKEND_URL = 'http://127.0.0.1:8000'; // Sesuaikan dengan port backend Anda
+  const ATTENDANCE_BY_DATE_API = `${BACKEND_URL}/api/attendance-by-date`;
+
+  let attendanceData = [];
+  let systemStartDate = null;
+  let currentDate = null;
+  let weeklyData = null;
+
+  // Initialize the UI when the page loads
+  window.onload = function() {
+    loadSystemInfo();
+    loadAttendanceDates();
+    loadTodayActiveInterns();
+    initializeMonthYearSelectors();
+  };
+
+  function initializeMonthYearSelectors() {
+    const monthSelector = document.getElementById('monthSelector');
+    const yearSelector = document.getElementById('yearSelector');
+    
+    // Populate months
+    const months = [
+      {value: 1, name: 'Januari'}, {value: 2, name: 'Februari'}, {value: 3, name: 'Maret'},
+      {value: 4, name: 'April'}, {value: 5, name: 'Mei'}, {value: 6, name: 'Juni'},
+      {value: 7, name: 'Juli'}, {value: 8, name: 'Agustus'}, {value: 9, name: 'September'},
+      {value: 10, name: 'Oktober'}, {value: 11, name: 'November'}, {value: 12, name: 'Desember'}
+    ];
+    
+    months.forEach(month => {
+      monthSelector.innerHTML += `<option value="${month.value}">${month.name}</option>`;
+    });
+    
+    // Populate years (current year and 2 years back)
+    const currentYear = new Date().getFullYear();
+    for (let year = currentYear; year >= currentYear - 2; year--) {
+      yearSelector.innerHTML += `<option value="${year}">${year}</option>`;
+    }
+    
+    // Set current month and year as default
+    const now = new Date();
+    monthSelector.value = now.getMonth() + 1;
+    yearSelector.value = now.getFullYear();
+    
+    // Load initial data
+    loadMonthlyAttendance();
+  }
+
+  async function loadMonthlyAttendance() {
+    const month = document.getElementById('monthSelector').value;
+    const year = document.getElementById('yearSelector').value;
+    if (!month || !year) return;
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/monthly-attendance/${year}/${month}`);
+      const data = await response.json();
+      if (data.error) {
+        console.error('Error:', data.error);
+        return;
+      }
+      document.getElementById('totalAttendance').textContent = data.total_attendance;
+      document.getElementById('uniqueDays').textContent = data.unique_days;
+      document.getElementById('avgDaily').textContent = data.avg_daily_attendance;
+      // Update total hari aktif (sepanjang sistem aktif)
+      const rangeResponse = await fetch(`${BACKEND_URL}/api/attendance-dates-with-range`);
+      const rangeData = await rangeResponse.json();
+      if (!rangeData.error) {
+        document.getElementById('uniqueDays').textContent = rangeData.total_dates;
+      }
+    } catch (error) {
+      console.error('Error loading monthly attendance:', error);
+    }
+  }
+
+  async function loadTodayActiveInterns() {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/today-active-interns`);
+      const data = await response.json();
+      
+      if (data.error) {
+        console.error('Error:', data.error);
+        return;
+      }
+      
+      document.getElementById('todayActiveCount').textContent = data.total_active;
+      
+      const container = document.getElementById('todayActiveInterns');
+      if (data.active_interns.length === 0) {
+        container.innerHTML = `
+          <div class="text-center text-gray-500 py-4">
+            <p>📝 Belum ada intern yang absen hari ini</p>
+          </div>
+        `;
+      } else {
+        container.innerHTML = data.active_interns.map(intern => `
+          <div class="bg-white border rounded-lg p-3 shadow-sm">
+            <div class="flex items-start gap-3">
+              <!-- Capture Image -->
+              <div class="flex-shrink-0">
+                ${intern.capture_image ? `
+                  <div class="w-16 h-16 rounded-lg overflow-hidden border-2 border-blue-200">
+                    <img src="${intern.capture_image}" alt="Capture ${intern.name}" 
+                         class="w-full h-full object-cover" 
+                         onerror="this.src='https://via.placeholder.com/64x64/blue/white?text=📷'">
+                  </div>
+                ` : `
+                  <div class="w-16 h-16 bg-blue-100 rounded-lg flex items-center justify-center">
+                    <span class="text-blue-600 text-xl">📷</span>
+                  </div>
+                `}
+              </div>
+              
+              <!-- Intern Info -->
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2 mb-1">
+                  <h4 class="font-semibold text-gray-800">${intern.name}</h4>
+                  <span class="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
+                    ✓ Terdeteksi
+                  </span>
+                </div>
+                
+                <div class="text-sm text-gray-600 space-y-1">
+                  <div>
+                    <span class="text-gray-500">Divisi:</span>
+                    <span class="font-medium text-blue-600 ml-1">${intern.division || intern.jobdesk}</span>
+                  </div>
+                  <div>
+                    <span class="text-gray-500">Waktu:</span>
+                    <span class="font-medium text-green-600 ml-1">⏰ ${new Date(intern.recognition_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        `).join('');
+      }
+      
+    } catch (error) {
+      console.error('Error loading today active interns:', error);
+    }
+  }
+
+  async function viewWeeklyAttendance() {
+    const month = document.getElementById('monthSelector').value;
+    const year = document.getElementById('yearSelector').value;
+    
+    if (!month || !year) {
+      alert('Pilih bulan dan tahun terlebih dahulu');
+      return;
+    }
+    try {
+      // Ambil data absensi bulanan
+      const response = await fetch(`${BACKEND_URL}/api/monthly-attendance/${year}/${month}`);
+      const data = await response.json();
+      if (data.error) {
+        console.error('Error:', data.error);
+        return;
+      }
+      // Siapkan array tanggal dan attendees
+      const daysInMonth = new Date(year, month, 0).getDate();
+      const attendanceMap = {};
+      (data.daily_stats || []).forEach(day => {
+        attendanceMap[day.date] = day.attendees || [];
+      });
+      // Bagi per minggu: 1-7, 8-14, 15-21, 22-28, 29-habis
+      const weeks = [];
+      let weekNum = 1;
+      for (let start = 1; start <= daysInMonth; start += 7) {
+        const end = Math.min(start + 6, daysInMonth);
+        const weekData = [];
+        for (let day = start; day <= end; day++) {
+          const dateStr = `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+          weekData.push({
+            date: dateStr,
+            attendees: attendanceMap[dateStr] || []
+          });
+        }
+        weeks.push({
+          week: weekNum,
+          start,
+          end,
+          data: weekData
+        });
+        weekNum++;
+      }
+      weeklyData = { weeks, year, month };
+      displayWeeklyData();
+      document.getElementById('weeklyModal').classList.remove('hidden');
+    } catch (error) {
+      console.error('Error loading weekly attendance:', error);
+    }
+  }
+
+  function displayWeeklyData() {
+    if (!weeklyData) return;
+    const container = document.getElementById('weeklyAttendanceData');
+    container.innerHTML = weeklyData.weeks.map(week => {
+      const weekLabel = `Minggu ${week.week}: ${week.start} - ${week.end} ${getMonthName(weeklyData.month)} ${weeklyData.year}`;
+      return `
+        <div class="mb-6 border rounded-lg">
+          <div class="px-4 py-2 bg-blue-50 rounded-t-lg font-semibold text-blue-700 flex justify-between items-center">
+            <span>📅 ${weekLabel}</span>
+            <span class="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">${week.data.reduce((a,b)=>a+b.attendees.length,0)} intern</span>
+          </div>
+          <div class="divide-y">
+            ${week.data.map(day => {
+              const dateObj = new Date(day.date);
+              const formatted = dateObj.toLocaleDateString('id-ID', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+              return `<div class='p-3 flex justify-between items-center'>
+                <div>
+                  <div class='font-medium'>${formatted}</div>
+                  ${day.attendees.length > 0 ?
+                    `<ul class='ml-4 mt-1 list-disc text-sm'>${day.attendees.map(a => `<li>${a.name} <span class='text-xs text-gray-500'>(${a.jobdesk})</span></li>`).join('')}</ul>`
+                    : `<span class='text-gray-400 text-sm'>Tidak ada absensi</span>`}
+                </div>
+                <span class='px-2 py-1 bg-gray-100 rounded text-xs'>${day.attendees.length} intern</span>
+              </div>`;
+            }).join('')}
+          </div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function getMonthName(month) {
+    const months = ['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+    return months[month-1] || '';
+  }
+
+  function closeWeeklyModal() {
+    document.getElementById('weeklyModal').classList.add('hidden');
+  }
+
+  async function loadSystemInfo() {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/system-start-date`);
+      const data = await response.json();
+      
+      systemStartDate = new Date(data.system_start_date);
+      currentDate = new Date(data.current_date);
+      
+      // Format dates for display
+      const formattedStartDate = systemStartDate.toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+      
+      const formattedCurrentDate = currentDate.toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+      
+      document.getElementById('systemStartDate').textContent = formattedStartDate;
+      document.getElementById('currentDate').textContent = formattedCurrentDate;
+      
+    } catch (error) {
+      console.error('Error loading system info:', error);
+    }
+  }
+
+  async function loadAttendanceDates() {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/attendance-dates-with-range`);
+      const data = await response.json();
+      
+      // Populate dropdown with all dates in range
+      const selector = document.getElementById('absensiSelector');
+      selector.innerHTML = '<option value="">-- Pilih Tanggal --</option>';
+      
+      if (data.date_range && data.date_range.length > 0) {
+        data.date_range.forEach((dateInfo) => {
+          const date = new Date(dateInfo.date);
+          const formattedDate = date.toLocaleDateString('id-ID', {
+            day: 'numeric',
+            month: 'long',
+            year: 'numeric'
+          });
+          
+          // Tambahkan indikator jika ada absensi atau tidak
+          const attendanceIndicator = dateInfo.has_attendance ? ' ✅' : ' 📝';
+          selector.innerHTML += `<option value="${dateInfo.date}">${formattedDate}${attendanceIndicator}</option>`;
+        });
+      }
+      
+      // Store attendance data for filtering
+      attendanceData = data.date_range || [];
+      
+    } catch (error) {
+      console.error('Error loading attendance dates:', error);
+      document.getElementById('attendanceList').innerHTML = `
+        <div class="text-center text-red-500 py-8">
+          <p>❌ Error memuat data</p>
+          <p class="text-sm mt-2">Pastikan backend server berjalan</p>
+        </div>
+      `;
+    }
+  }
+
+  async function updateAbsensiUI() {
+    const selector = document.getElementById('absensiSelector');
+    const attendanceList = document.getElementById('attendanceList');
+    
+    if (selector.value === '') {
+      attendanceList.innerHTML = `
+        <div class="text-center text-gray-500 py-8">
+          <p>📅 Pilih tanggal untuk melihat daftar hadir</p>
+          <p class="text-sm mt-2">Dropdown akan menampilkan tanggal dari sistem aktif hingga hari ini</p>
+        </div>
+      `;
+      return;
+    }
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/attendance-by-date/${selector.value}`);
+      const data = await response.json();
+      
+      if (data.error) {
+        attendanceList.innerHTML = `
+          <div class="text-center text-red-500 py-8">
+            <p>❌ Error: ${data.error}</p>
+          </div>
+        `;
+        return;
+      }
+
+      const date = new Date(data.date);
+      const formattedDate = date.toLocaleDateString('id-ID', {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+
+      if (data.attendees.length === 0) {
+        attendanceList.innerHTML = `
+          <div class="stat-card p-4 animate-slide-in">
+            <h3 class="text-lg font-semibold text-gray-700 mb-4">Daftar Hadir - ${formattedDate}</h3>
+            <div class="text-center text-gray-500 py-8">
+              <p>📝 Tidak ada data absensi untuk tanggal ini</p>
+            </div>
+          </div>
+        `;
+        return;
+      }
+
+      attendanceList.innerHTML = `
+        <div class="stat-card p-4 animate-slide-in">
+          <h3 class="text-lg font-semibold text-gray-700 mb-4">Daftar Hadir - ${formattedDate}</h3>
+          <div class="space-y-3">
+            ${data.attendees.map(attendee => `
+              <div class="attendance-card flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div class="flex items-center gap-4">
+                  <div class="profile-image">
+                    <img src="${attendee.photo}" alt="${attendee.name}">
+                  </div>
+                  <div class="attendance-info">
+                    <h4 class="font-medium text-gray-800">${attendee.name}</h4>
+                    <p class="text-xs text-gray-500">${attendee.jobdesk}</p>
+                    <p class="text-sm text-gray-500">⏰ ${new Date(attendee.recognition_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
+                  </div>
+                </div>
+                <span class="status-badge px-3 py-1 rounded-full text-sm ${
+                  attendee.status === 'Hadir' ? 'status-hadir' : 'status-terlambat'
+                }">${attendee.status}</span>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      `;
+      
+    } catch (error) {
+      console.error('Error loading attendance data:', error);
+      attendanceList.innerHTML = `
+        <div class="text-center text-red-500 py-8">
+          <p>❌ Error memuat data absensi</p>
+        </div>
+      `;
+    }
+  }
+
+  function filterAbsensi() {
+    const term = document.getElementById('absensiSearch').value.toLowerCase();
+    const selector = document.getElementById('absensiSelector');
+    const attendanceList = document.getElementById('attendanceList');
+    
+    if (selector.value === '') {
+      return; // No date selected, can't filter
+    }
+
+    // Filter attendees for the selected date
+    fetch(`${BACKEND_URL}/api/attendance-by-date/${selector.value}`)
+      .then(response => response.json())
+      .then(data => {
+        if (data.error) return;
+
+        const filteredAttendees = data.attendees.filter(attendee =>
+          attendee.name.toLowerCase().includes(term) ||
+          attendee.jobdesk.toLowerCase().includes(term) ||
+          attendee.time.toLowerCase().includes(term)
+        );
+
+        const date = new Date(data.date);
+        const formattedDate = date.toLocaleDateString('id-ID', {
+          day: 'numeric',
+          month: 'long',
+          year: 'numeric'
+        });
+
+        if (filteredAttendees.length === 0) {
+          attendanceList.innerHTML = `
+            <div class="stat-card p-4 animate-slide-in">
+              <h3 class="text-lg font-semibold text-gray-700 mb-4">Daftar Hadir - ${formattedDate}</h3>
+              <div class="text-center text-gray-500 py-8">
+                <p>🔍 Tidak ada data yang cocok dengan pencarian</p>
+              </div>
+            </div>
+          `;
+          return;
+        }
+
+        attendanceList.innerHTML = `
+          <div class="stat-card p-4 animate-slide-in">
+            <h3 class="text-lg font-semibold text-gray-700 mb-4">Daftar Hadir - ${formattedDate}</h3>
+            <div class="space-y-3">
+              ${filteredAttendees.map(attendee => `
+                <div class="attendance-card flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                  <div class="flex items-center gap-4">
+                    <div class="profile-image">
+                      <img src="${attendee.photo}" alt="${attendee.name}">
+                    </div>
+                    <div class="attendance-info">
+                      <h4 class="font-medium text-gray-800">${attendee.name}</h4>
+                      <p class="text-xs text-gray-500">${attendee.jobdesk}</p>
+                      <p class="text-sm text-gray-500">⏰ ${new Date(attendee.recognition_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
+                    </div>
+                  </div>
+                  <span class="status-badge px-3 py-1 rounded-full text-sm ${
+                    attendee.status === 'Hadir' ? 'status-hadir' : 'status-terlambat'
+                  }">${attendee.status}</span>
+                </div>
+              `).join('')}
+            </div>
+          </div>
+        `;
+      })
+      .catch(error => {
+        console.error('Error filtering attendance:', error);
+      });
+  }
+
+  function signOut() {
+    window.location.href = "main.html";
+  }
+
+  // Auto refresh setiap 30 detik
+  setInterval(() => {
+    loadSystemInfo();
+    loadTodayActiveInterns(); // Refresh intern aktif setiap 30 detik
+  }, 30000);
+</script>
+</body>
+</html> 
