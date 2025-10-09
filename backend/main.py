@@ -11,7 +11,6 @@ import webbrowser
 # Import gTTS library for automatic Text-to-Speech generation
 from gtts import gTTS 
 from fastapi import FastAPI, File, UploadFile, HTTPException
-# Mengubah import Response: Menambahkan RedirectResponse
 from starlette.requests import Request
 from starlette.responses import HTMLResponse, RedirectResponse
 from starlette.staticfiles import StaticFiles
@@ -30,6 +29,11 @@ DB_NAME = "vector_db"
 DB_USER = "macbookpro"  
 DB_PASSWORD = "deepfacepass" 
 DB_PATH = PROJECT_ROOT / "backend" / "attendance.db" # Database SQLite untuk log
+
+# [BARU/PERUBAHAN KRITIS] --- FOLDER UNTUK GAMBAR ABSENSI ---
+CAPTURED_IMAGES_DIR = PROJECT_ROOT / "backend" / "captured_images" # Folder tempat menyimpan foto absensi
+# --- END FOLDER BARU ---
+
 FRONTEND_STATIC_DIR = PROJECT_ROOT / "frontend" / "static" # Path ke folder static (untuk main.html, CSS, JS)
 AUDIO_FILES_DIR = PROJECT_ROOT / "backend" / "generated_audio" # Path FISIK ke folder audio
 
@@ -40,8 +44,14 @@ app = FastAPI(title="DeepFace Absensi API")
 app.mount("/static", StaticFiles(directory=str(FRONTEND_STATIC_DIR)), name="static")
 
 # Mount folder audio spesifik menggunakan jalur baru "/audio"
-# Klien (client_webcam.py) HARUS disesuaikan untuk menggunakan jalur ini.
 app.mount("/audio", StaticFiles(directory=str(AUDIO_FILES_DIR), check_dir=True), name="generated_audio")
+
+# [BARU/PERUBAHAN KRITIS] --- MOUNT FOLDER GAMBAR BARU AGAR BISA DIAKSES WEBSERVER ---
+# Mount folder gambar absensi menggunakan jalur "/images"
+# Ini memungkinkan browser mengakses gambar melalui URL http://127.0.0.1:8000/images/namafile.jpg
+app.mount("/images", StaticFiles(directory=str(CAPTURED_IMAGES_DIR), check_dir=True), name="captured_images")
+# --- END MOUNT FOLDER GAMBAR BARU ---
+
 
 # --- FUNGSI AUDIO GENERATION ---
 
@@ -66,7 +76,6 @@ def generate_audio_file(filename: str, text: str):
         print(f"   -> ✅ TTS file {filename} successfully generated.")
     except Exception as e:
         print(f"❌ ERROR: Gagal generate file audio {filename}. Pastikan Anda memiliki koneksi internet: {e}")
-        # Gagal generate TTS tidak boleh menghentikan server, hanya mencatat error
         
 # --- FUNGSI DATABASE ---
 
@@ -86,20 +95,20 @@ def initialize_sqlite_db():
         """)
         
         # 2. Tambahkan entri test untuk 'Said' (jika belum ada)
-        # Ini penting agar log absensi pertama bisa dicatat dan duplikasi bisa dicek.
         cursor.execute(
             "INSERT OR IGNORE INTO interns (name, jobdesk) VALUES (?, ?)",
             ("Said", "Software Engineer")
         )
 
         # 3. Buat tabel attendance_logs (jika belum ada)
+        # [BARU/PERUBAHAN KRITIS] - Tambahkan kolom 'image_url'
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS attendance_logs (
                 log_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 intern_id INTEGER,
                 intern_name TEXT NOT NULL,
                 jobdesk TEXT,
-                image_url TEXT,
+                image_url TEXT, 
                 absent_at TEXT,
                 FOREIGN KEY (intern_id) REFERENCES interns(id)
             );
@@ -109,10 +118,13 @@ def initialize_sqlite_db():
         conn.close()
         print("✅ SQLite Database (attendance.db) berhasil diinisialisasi.")
         
+        # [BARU/PERUBAHAN KRITIS] - Pastikan folder gambar absensi juga ada
+        os.makedirs(CAPTURED_IMAGES_DIR, exist_ok=True)
+        print(f"✅ Folder gambar absensi ({CAPTURED_IMAGES_DIR}) siap.")
+        
     except Exception as e:
         print(f"❌ KRITIS: Gagal menginisialisasi tabel SQLite: {e}")
-        # Jangan raise HTTPException di sini, biarkan server tetap berjalan
-        # walaupun fungsi absensi sementara tidak bekerja sampai DB diperbaiki.
+        
 
 def connect_vector_db():
     """Membuat koneksi ke Database Vektor (PostgreSQL)."""
@@ -136,10 +148,10 @@ def check_duplicate_attendance(intern_name: str) -> bool:
         conn.close()
         return count > 0
     except Exception as e:
-        # Menangkap error jika tabel belum dibuat (sekarang seharusnya teratasi oleh initialize_sqlite_db)
         print(f"❌ Gagal memeriksa duplikasi absensi: {e}")
         return False
 
+# [PERUBAHAN KRITIS] - Pastikan parameter 'image_url' digunakan
 def log_attendance(intern_name: str, jobdesk: str, image_url: str):
     """Mencatat log absensi ke database SQLite dan mengembalikan ID intern."""
     try:
@@ -151,6 +163,7 @@ def log_attendance(intern_name: str, jobdesk: str, image_url: str):
         
         if intern_id_tuple:
             intern_id = intern_id_tuple[0]
+            # [PERUBAHAN KRITIS] - Tambahkan kolom dan nilai image_url di INSERT
             cursor.execute(
                 "INSERT INTO attendance_logs (intern_id, intern_name, jobdesk, image_url, absent_at) VALUES (?, ?, ?, ?, datetime('now', 'localtime'))",
                 (intern_id, intern_name, jobdesk, image_url)
@@ -172,23 +185,18 @@ def log_attendance(intern_name: str, jobdesk: str, image_url: str):
 @app.on_event("startup")
 async def open_browser_on_startup():
     """Melakukan inisialisasi DB dan membuka browser setelah FastAPI selesai startup."""
-    # PENTING: Inisialisasi DB harus dilakukan sebelum fungsi lain berjalan
     initialize_sqlite_db()
     
     import threading
     
-    # URL yang akan dibuka (sesuai dengan default Uvicorn)
     url = "http://127.0.0.1:8000/"
     
     def open_url():
-        # Beri sedikit delay agar server benar-benar siap
         time.sleep(1) 
-        # Buka URL di browser default
         print(f"🌐 Membuka aplikasi absensi di: {url}")
-        webbrowser.open(url) # KODE SUDAH DI-UNCOMMENT
+        webbrowser.open(url) 
         
-    # Jalankan fungsi open_url di thread terpisah agar tidak memblokir server utama
-    threading.Thread(target=open_url).start() # KODE SUDAH DI-UNCOMMENT
+    threading.Thread(target=open_url).start() 
 
 
 # --- ENDPOINTS ---
@@ -196,27 +204,24 @@ async def open_browser_on_startup():
 @app.get("/", response_class=HTMLResponse)
 async def read_root(request: Request):
     """Mengalihkan ke file HTML utama yang di-mount secara statis."""
-    # PERBAIKAN: Mengalihkan permintaan root ("/") langsung ke file di path statis
     return RedirectResponse(url="/static/main.html", status_code=HTTP_302_FOUND)
-    # Ini memastikan bahwa browser diarahkan ke path yang benar dan menghilangkan 
-    # kebutuhan untuk membaca file secara manually, menghindari masalah path relatif.
-
+    
 @app.post("/recognize")
 async def recognize_face(file: UploadFile = File(...)):
     """Endpoint utama untuk deteksi wajah dan pencocokan cepat."""
     start_time = time.time()
-    # image_bytes = await file.read() # Mengganti ini dengan baris di bawah
-    # Pastikan data file sudah dibaca sebelum diproses
     image_bytes = await file.read() 
 
+    # [BARU/PERUBAHAN KRITIS] - Inisialisasi URL gambar kosong jika ada error
+    image_url_for_db = ""
+    
     # 1. EKSTRAKSI VEKTOR WAJAH BARU (GPU CRITICAL STEP)
     emb_list = extract_face_features(image_bytes) 
     
     if not emb_list:
-        # ⚠️ Jika wajah tidak terdeteksi / ekstaksi fitur gagal
         generate_audio_file("S002.mp3", "Wajah tidak terdeteksi. Silakan coba lagi.")
-        # MENGEMBALIKAN NAMA FILE LENGKAP DI TRACK_ID
-        return {"status": "error", "message": "Wajah tidak terdeteksi.", "track_id": "S002.mp3"}
+        # [PERUBAHAN KRITIS] - Tambahkan image_url ke respons
+        return {"status": "error", "message": "Wajah tidak terdeteksi.", "track_id": "S002.mp3", "image_url": image_url_for_db}
     
     new_embedding = emb_list[0] 
 
@@ -225,7 +230,6 @@ async def recognize_face(file: UploadFile = File(...)):
         conn = connect_vector_db()
         cursor = conn.cursor()
         
-        # NOTE: Formatting vector string untuk query PGSQL
         vector_string = "[" + ",".join(map(str, new_embedding)) + "]"
 
         cursor.execute(f"""
@@ -247,50 +251,58 @@ async def recognize_face(file: UploadFile = File(...)):
                 
                 # Check duplikasi absensi
                 if check_duplicate_attendance(name):
-                    # ⚠️ Status Duplikat
                     print(f"✅ DUPLIKAT ABSENSI: {name} | Latensi: {elapsed_time:.2f}s")
-                    
-                    # MENGATUR NAMA FILE AUDIO KUSTOM UNTUK DUPLIKAT
                     audio_filename = f"duplicate_{name}.mp3"
                     generate_audio_file(audio_filename, f"{name}, Anda sudah absen hari ini. Selamat bekerja.")
                     
-                    # MENGEMBALIKAN NAMA FILE LENGKAP DI TRACK_ID
-                    return {"status": "duplicate", "name": name, "jobdesk": jobdesk, "distance": f"{distance:.3f}", "latency": f"{elapsed_time:.2f}s", "track_id": audio_filename}
+                    # [PERUBAHAN KRITIS] - Tambahkan image_url ke respons duplikat
+                    return {"status": "duplicate", "name": name, "jobdesk": jobdesk, "distance": f"{distance:.3f}", "latency": f"{elapsed_time:.2f}s", "track_id": audio_filename, "image_url": image_url_for_db} 
                 
-                # Absensi Berhasil
-                # NOTE: image_url di log_attendance bisa diganti jika Anda menyimpan foto absensi
-                log_attendance(name, jobdesk, "N/A") 
-                print(f"✅ DETEKSI BERHASIL: {name} | Jarak: {distance:.3f} | Latensi: {elapsed_time:.2f}s")
+                # [BARU/PERUBAHAN KRITIS] --- LOGIKA PENYIMPANAN GAMBAR ABSENSI ---
+                timestamp = time.strftime("%Y%m%d_%H%M%S")
+                # Nama file: Tanggal_Waktu_Nama.jpg
+                image_filename = f"{timestamp}_{name.replace(' ', '_')}.jpg"
+                image_path = CAPTURED_IMAGES_DIR / image_filename
                 
-                # MENGATUR NAMA FILE AUDIO KUSTOM UNTUK SUKSES
+                # Tulis file gambar (dari bytes yang diupload) ke folder captured_images
+                with open(image_path, "wb") as f:
+                    f.write(image_bytes)
+                
+                # URL gambar yang dapat diakses oleh browser (melalui mount /images)
+                image_url_for_db = f"/images/{image_filename}"
+                # --- END LOGIKA PENYIMPANAN GAMBAR ABSENSI ---
+                
+                # Absensi Berhasil: Catat ke DB
+                # [PERUBAHAN KRITIS] - log_attendance dipanggil dengan URL gambar
+                log_attendance(name, jobdesk, image_url_for_db) 
+                print(f"✅ DETEKSI BERHASIL: {name} | Jarak: {distance:.3f} | Latensi: {elapsed_time:.2f}s | Gambar disimpan: {image_filename}")
+                
                 audio_filename = f"welcome_{name}.mp3"
                 generate_audio_file(audio_filename, f"Selamat datang, {name}. Absensi berhasil dicatat.")
                 
-                # MENGEMBALIKAN NAMA FILE LENGKAP DI TRACK_ID
-                return {"status": "success", "name": name, "jobdesk": jobdesk, "distance": f"{distance:.3f}", "latency": f"{elapsed_time:.2f}s", "track_id": audio_filename}
+                # [PERUBAHAN KRITIS] - image_url ditambahkan ke respons sukses
+                return {"status": "success", "name": name, "jobdesk": jobdesk, "distance": f"{distance:.3f}", "latency": f"{elapsed_time:.2f}s", "track_id": audio_filename, "image_url": image_url_for_db}
             else:
                 # ⚠️ Tidak Dikenali (Jarak Terlalu Jauh)
                 print(f"❌ DETEKSI GAGAL: Jarak Terlalu Jauh ({distance:.3f}) | Latensi: {elapsed_time:.2f}s")
-                # Generate audio: S003.mp3
                 generate_audio_file("S003.mp3", "Data wajah Anda belum terdaftar di sistem. Mohon hubungi admin.")
-                # MENGEMBALIKAN NAMA FILE LENGKAP DI TRACK_ID
-                return {"status": "unrecognized", "message": "Data Wajah Anda Belum Terdaftar Di Sistem", "track_id": "S003.mp3"}
+                # [PERUBAHAN KRITIS] - Tambahkan image_url ke respons unrec
+                return {"status": "unrecognized", "message": "Data Wajah Anda Belum Terdaftar Di Sistem", "track_id": "S003.mp3", "image_url": image_url_for_db}
+
         else:
             # Database Vektor kosong
-            # Generate audio: S003.mp3
             generate_audio_file("S003.mp3", "Data wajah Anda belum terdaftar di sistem. Mohon hubungi admin.")
-            # MENGEMBALIKAN NAMA FILE LENGKAP DI TRACK_ID
-            return {"status": "error", "message": "Sistem kosong, lakukan indexing.", "track_id": "S003.mp3"}
+            # [PERUBAHAN KRITIS] - Tambahkan image_url ke respons error
+            return {"status": "error", "message": "Sistem kosong, lakukan indexing.", "track_id": "S003.mp3", "image_url": image_url_for_db}
 
     except HTTPException:
         # Menangkap HTTPException dari connect_vector_db
         raise
     except Exception as e:
         print(f"❌ ERROR PENCARIAN/ABSENSI: {e}")
-        # Generate audio: S002.mp3
         generate_audio_file("S002.mp3", "Wajah tidak terdeteksi. Silakan coba lagi.")
-        # MENGEMBALIKAN NAMA FILE LENGKAP DI TRACK_ID
-        return {"status": "error", "message": "Kesalahan server saat pencarian/absensi.", "track_id": "S002.mp3"}
+        # [PERUBAHAN KRITIS] - Tambahkan image_url ke respons error
+        return {"status": "error", "message": "Kesalahan server saat pencarian/absensi.", "track_id": "S002.mp3", "image_url": image_url_for_db}
 
 # --- ENDPOINT BARU UNTUK DATA FRONTEND ---
 
@@ -336,13 +348,12 @@ async def get_today_active_interns():
         conn = connect_sqlite_db()
         cursor = conn.cursor()
         
-        # Mengambil daftar unik intern yang absen hari ini
-        # KODE INI MENGAMBIL LOG ABSENSI TERAKHIR per intern hari ini.
+        # [PERUBAHAN KRITIS] - Ambil image_url dari database
         cursor.execute("""
-            SELECT T1.intern_name, T1.jobdesk, MAX(T1.absent_at)
+            SELECT T1.intern_name, T1.jobdesk, MAX(T1.absent_at), T1.image_url
             FROM attendance_logs T1
             WHERE T1.absent_at LIKE ?
-            GROUP BY T1.intern_name, T1.jobdesk
+            GROUP BY T1.intern_name, T1.jobdesk, T1.image_url 
             ORDER BY MAX(T1.absent_at) DESC
         """, (f"{today_date}%",))
         
@@ -350,14 +361,16 @@ async def get_today_active_interns():
         conn.close()
 
         interns = []
-        for name, jobdesk, time_str in results:
+        # [PERUBAHAN KRITIS] - Ekstrak image_url dari hasil query
+        for name, jobdesk, time_str, image_url in results: 
             # Hanya ambil waktu (HH:MM:SS)
             time_only = time_str.split(' ')[1].split('.')[0]
             interns.append({
                 "name": name,
                 "jobdesk": jobdesk,
                 "time": time_only,
-                "status": "Hadir" # Asumsi semua yang ada di log adalah Hadir
+                "status": "Hadir", 
+                "image_url": image_url # Sertakan URL gambar
             })
             
         return {"active_interns": interns, "count": len(interns)}
@@ -403,12 +416,12 @@ async def get_attendance_by_date(date: str):
         conn = connect_sqlite_db()
         cursor = conn.cursor()
         
-        # Dapatkan log absensi terakhir per intern untuk tanggal tersebut
+        # [PERUBAHAN KRITIS] - Ambil image_url dari database
         cursor.execute("""
-            SELECT T1.intern_name, T1.jobdesk, MAX(T1.absent_at)
+            SELECT T1.intern_name, T1.jobdesk, MAX(T1.absent_at), T1.image_url
             FROM attendance_logs T1
             WHERE T1.absent_at LIKE ?
-            GROUP BY T1.intern_name, T1.jobdesk
+            GROUP BY T1.intern_name, T1.jobdesk, T1.image_url
             ORDER BY MAX(T1.absent_at) DESC
         """, (f"{date}%",))
         
@@ -416,14 +429,16 @@ async def get_attendance_by_date(date: str):
         conn.close()
 
         attendance_list = []
-        for name, jobdesk, time_str in results:
+        # [PERUBAHAN KRITIS] - Ekstrak image_url dari hasil query
+        for name, jobdesk, time_str, image_url in results:
             # Hanya ambil waktu (HH:MM:SS)
             time_only = time_str.split(' ')[1].split('.')[0]
             attendance_list.append({
                 "name": name,
                 "jobdesk": jobdesk,
                 "time": time_only,
-                "status": "Hadir" # Asumsi semua yang ada di log adalah Hadir
+                "status": "Hadir",
+                "image_url": image_url
             })
             
         return {"date": date, "attendance_logs": attendance_list, "total_unique": len(attendance_list)}

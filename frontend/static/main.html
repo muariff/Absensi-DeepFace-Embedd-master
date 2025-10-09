@@ -3,205 +3,321 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Dashboard - Absensi Intern</title>
+  <title>Dashboard - Absensi Intern Admin</title>
+  <!-- Load Tailwind CSS -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Load DaisyUI (optional, mostly using Tailwind but keeping it for utilities) -->
   <link href="https://cdn.jsdelivr.net/npm/daisyui@latest/dist/full.css" rel="stylesheet" type="text/css" />
-  <link href="https://fonts.googleapis.com/css2?family=Inter&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
   <link href="/static/style.css" rel="stylesheet">
   <!-- <script src="auth.js"></script> -->
 </head>
-<body class="flex h-screen bg-white">
-<!-- <script>checkAuth();</script> -->
+<body class="flex h-screen bg-gray-50">
 
 <!-- Sidebar -->
-<aside class="w-64 sidebar flex flex-col items-start py-8 px-6 space-y-6 shadow-lg">
-  <div class="text-2xl font-bold mb-4 self-center">
-    <span class="text-center block mt-2">ADMIN</span>
+<aside class="w-64 sidebar flex flex-col items-start py-8 px-4 space-y-8 shadow-2xl">
+  <div class="text-3xl font-extrabold mb-4 self-center text-white border-b border-red-700 pb-3 w-full text-center">
+    <span class="block">ADMIN DASH</span>
   </div>
   <nav class="w-full flex flex-col gap-4 text-white font-medium text-base">
-    <a href="main.html" class="w-full flex items-center gap-3 px-4 py-2 rounded-lg sidebar-link active">
+    <a href="main.html" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl sidebar-link active bg-red-700 shadow-md">
       <span>🏠</span> <span>Dashboard</span>
     </a>
-    <a href="data.html" class="w-full flex items-center gap-3 px-4 py-2 rounded-lg sidebar-link">
+    <a href="data.html" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl sidebar-link hover:bg-red-700/50">
       <span>🧑‍💼</span> <span>List Data Intern</span>
     </a>
-    <a href="daftarhadir.html" class="w-full flex items-center gap-3 px-4 py-2 rounded-lg sidebar-link">
+    <a href="daftarhadir.html" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl sidebar-link hover:bg-red-700/50">
       <span>🧾</span> <span>Daftar Hadir</span>
     </a>
-    <button onclick="signOut()" class="w-full flex items-center gap-3 px-4 py-2 rounded-lg bg-white text-red-700 hover:bg-red-100 font-semibold transition">
-      <span>🚪</span> <span>Sign Out</span>
+    <!-- Sign Out Button -->
+    <button id="signOutButton" onclick="signOut()" class="w-full flex items-center gap-3 px-4 py-3 rounded-xl mt-8 bg-white text-red-700 hover:bg-red-100 font-bold transition shadow-lg">
+      <span>🚪</span> <span>Keluar (Sign Out)</span>
     </button>
   </nav>
+  <div class="mt-auto text-xs text-red-200 w-full text-center">
+    <p>Logged in as: <span id="currentUserId">Loading...</span></p>
+  </div>
 </aside>
 
 <!-- Main Content -->
 <main class="flex-1 p-8 overflow-y-auto main-content">
-  <h1 class="text-3xl font-bold text-red-700 mb-6">📈 Dashboard</h1>
+  <h1 class="text-4xl font-extrabold text-red-700 mb-8">📈 Dashboard Admin</h1>
   
   <!-- Statistik Utama -->
-  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-    <div class="stat-card p-6">
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+    <!-- Card 1: Total Kehadiran -->
+    <div class="stat-card p-6 bg-white shadow-xl">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-xl font-semibold text-gray-700">Total Kehadiran</h2>
-        <span class="text-2xl">📊</span>
+        <span class="text-3xl text-red-500">📊</span>
       </div>
-      <p id="totalAttendance" class="text-4xl text-red-600 font-bold">-</p>
+      <p id="totalAttendance" class="text-5xl text-red-600 font-extrabold">-</p>
       <p class="text-sm text-gray-500 mt-2">Sesi kehadiran bulan ini</p>
     </div>
     
-    <div class="stat-card p-6">
+    <!-- Card 2: Intern Aktif Hari Ini -->
+    <div class="stat-card p-6 bg-white shadow-xl">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-xl font-semibold text-gray-700">Intern Aktif</h2>
-        <span class="text-2xl">👥</span>
+        <span class="text-3xl text-green-500">👥</span>
       </div>
-      <p id="activeInterns" class="text-4xl text-green-600 font-bold">-</p>
+      <p id="activeInterns" class="text-5xl text-green-600 font-extrabold">-</p>
       <p class="text-sm text-gray-500 mt-2">Intern yang absen hari ini</p>
     </div>
 
-    <div class="stat-card p-6">
+    <!-- Card 3: Hari Aktif -->
+    <div class="stat-card p-6 bg-white shadow-xl">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-xl font-semibold text-gray-700">Hari Aktif</h2>
-        <span class="text-2xl">📅</span>
+        <span class="text-3xl text-blue-500">📅</span>
       </div>
-      <p id="activeDays" class="text-4xl text-blue-600 font-bold">-</p>
+      <p id="activeDays" class="text-5xl text-blue-600 font-extrabold">-</p>
       <p class="text-sm text-gray-500 mt-2">Total hari dengan absensi</p>
     </div>
 
-    <div class="stat-card p-6">
+    <!-- Card 4: Rata-rata/Hari -->
+    <div class="stat-card p-6 bg-white shadow-xl">
       <div class="flex items-center justify-between mb-4">
         <h2 class="text-xl font-semibold text-gray-700">Rata-rata/Hari</h2>
-        <span class="text-2xl">📈</span>
+        <span class="text-3xl text-purple-500">📈</span>
       </div>
-      <p id="avgDaily" class="text-4xl text-purple-600 font-bold">-</p>
+      <p id="avgDaily" class="text-5xl text-purple-600 font-extrabold">-</p>
       <p class="text-sm text-gray-500 mt-2">Rata-rata kehadiran per hari</p>
     </div>
   </div>
 
-  <!-- Quick Actions -->
-  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-    <div class="stat-card p-6">
-      <h2 class="text-xl font-semibold text-gray-700 mb-4">🚀 Quick Actions</h2>
-      <div class="space-y-3">
-        <a href="daftarhadir.html" class="block w-full p-3 bg-blue-500 text-white rounded-lg text-center hover:bg-blue-600 transition">
-          📊 Lihat Total Kehadiran Bulan
+  <!-- Quick Actions and System Info -->
+  <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+    <!-- Quick Actions -->
+    <div class="stat-card p-6 bg-white shadow-xl">
+      <h2 class="text-2xl font-bold text-gray-700 mb-4">🚀 Quick Actions</h2>
+      <div class="space-y-4">
+        <a href="daftarhadir.html" class="block w-full p-4 bg-blue-600 text-white rounded-lg text-center font-semibold hover:bg-blue-700 transition shadow-md">
+          📊 Lihat Detail Kehadiran Bulanan
         </a>
-        <a href="data.html" class="block w-full p-3 bg-green-500 text-white rounded-lg text-center hover:bg-green-600 transition">
-          👥 Lihat Intern Aktif Hari Ini
+        <a href="data.html" class="block w-full p-4 bg-green-600 text-white rounded-lg text-center font-semibold hover:bg-green-700 transition shadow-md">
+          👥 Kelola Daftar Intern Aktif
         </a>
-        <button onclick="viewWeeklyData()" class="block w-full p-3 bg-purple-500 text-white rounded-lg text-center hover:bg-purple-600 transition">
+        <button onclick="window.viewWeeklyData()" class="block w-full p-4 bg-purple-600 text-white rounded-lg text-center font-semibold hover:bg-purple-700 transition shadow-md">
           📅 Lihat Data Absensi Seminggu
         </button>
       </div>
     </div>
 
-    <div class="stat-card p-6">
-      <h2 class="text-xl font-semibold text-gray-700 mb-4">📋 Informasi Sistem</h2>
-      <div class="space-y-3">
-        <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-          <span class="text-gray-600">Sistem Aktif Sejak:</span>
-          <span id="systemStartDate" class="font-medium">-</span>
+    <!-- Informasi Sistem -->
+    <div class="stat-card p-6 bg-white shadow-xl">
+      <h2 class="text-2xl font-bold text-gray-700 mb-4">📋 Informasi Sistem</h2>
+      <div class="space-y-4">
+        <div class="flex justify-between items-center p-4 bg-red-50 rounded-lg border-l-4 border-red-500">
+          <span class="text-gray-600 font-medium">Sistem Aktif Sejak:</span>
+          <span id="systemStartDate" class="font-extrabold text-red-700">-</span>
         </div>
-        <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-          <span class="text-gray-600">Tanggal Hari Ini:</span>
-          <span id="currentDate" class="font-medium">-</span>
+        <div class="flex justify-between items-center p-4 bg-blue-50 rounded-lg border-l-4 border-blue-500">
+          <span class="text-gray-600 font-medium">Tanggal Hari Ini:</span>
+          <span id="currentDate" class="font-extrabold text-blue-700">-</span>
         </div>
-        <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-          <span class="text-gray-600">Status Auto-Reset:</span>
-          <span id="resetStatus" class="font-medium text-green-600">🟢 Aktif</span>
+        <div class="flex justify-between items-center p-4 bg-green-50 rounded-lg border-l-4 border-green-500">
+          <span class="text-gray-600 font-medium">Status Auto-Reset:</span>
+          <span id="resetStatus" class="font-extrabold text-green-600">🟢 Aktif</span>
         </div>
-        <div class="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
-          <span class="text-gray-600">Face Recognition:</span>
-          <span class="font-medium text-blue-600">🤖 Aktif</span>
+        <div class="flex justify-between items-center p-4 bg-gray-100 rounded-lg border-l-4 border-gray-500">
+          <span class="text-gray-600 font-medium">Face Recognition:</span>
+          <span class="font-extrabold text-blue-600">🤖 Aktif</span>
         </div>
       </div>
     </div>
   </div>
 
   <!-- Today's Active Interns Preview -->
-  <div class="stat-card p-6 mt-6">
-    <h2 class="text-xl font-semibold text-gray-700 mb-4">👥 Intern Aktif Hari Ini (Preview)</h2>
+  <div class="stat-card p-6 mt-8 bg-white shadow-xl">
+    <h2 class="text-2xl font-bold text-gray-700 mb-4">👥 Intern Aktif Hari Ini (Preview)</h2>
     <div id="activeInternsPreview" class="space-y-3">
       <div class="text-center text-gray-500 py-4">
         <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-red-700 mx-auto mb-4"></div>
         <p>Memuat data intern aktif...</p>
       </div>
     </div>
-    <div class="text-center mt-4">
-      <a href="data.html" class="text-blue-600 hover:text-blue-800 text-sm font-medium">
+    <div class="text-center mt-6">
+      <a href="data.html" class="text-blue-600 hover:text-blue-800 text-lg font-bold transition">
         👁️ Lihat Detail Lengkap →
       </a>
     </div>
   </div>
 </main>
 
-<!-- Toast Container -->
+<!-- Toast Container (untuk notifikasi) -->
 <div id="toastContainer" class="fixed bottom-6 right-6 space-y-2 z-50"></div>
 
-<script>
-  const BACKEND_URL = 'http://127.0.0.1:8000'; // Sesuaikan dengan port backend Anda
-  const START_DATE_API = `${BACKEND_URL}/api/system-start-date`;
+<script type="module">
+  // =======================================================
+  // FIREBASE INITIALIZATION AND AUTHENTICATION
+  // =======================================================
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+  import { getAuth, signInAnonymously, signInWithCustomToken, signOut as firebaseSignOut, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+  import { getFirestore, setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-  // Update dashboard statistics when page loads
-  window.onload = function() {
-    loadDashboardData();
-    loadSystemInfo();
-    loadActiveInternsPreview();
+  // Global variables provided by the environment
+  const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+  const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+  const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+  
+  let app, db, auth;
+  let userId = null;
+  let isAuthReady = false;
+
+  // Function to display toast notifications
+  window.showToast = function(message, type = 'info') {
+      const toastContainer = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      
+      const bgColor = type === 'success' ? 'bg-green-100 border-green-500' : 
+                      type === 'error' ? 'bg-red-100 border-red-500' : 'bg-blue-100 border-blue-500';
+      const icon = type === 'success' ? '✅' : 
+                   type === 'error' ? '❌' : 'ℹ️';
+
+      toast.className = `p-4 border-l-4 ${bgColor} shadow-lg rounded-lg transition-opacity duration-300 w-full max-w-xs flex items-center gap-3`;
+      toast.innerHTML = `
+          <span class="text-xl">${icon}</span>
+          <span class="text-sm font-medium text-gray-800">${message}</span>
+      `;
+
+      toastContainer.prepend(toast);
+
+      // Remove toast after 4 seconds
+      setTimeout(() => {
+          toast.classList.add('opacity-0');
+          setTimeout(() => toast.remove(), 500);
+      }, 4000);
   };
 
-  function viewWeeklyData() {
-    window.location.href = 'daftarhadir.html';
-  }
+  async function initializeFirebase() {
+    if (!firebaseConfig) {
+      console.error("Firebase config hilang. Aplikasi tidak dapat berjalan.");
+      window.showToast("Kesalahan konfigurasi Firebase.", "error");
+      // Load data anyway for UI preview if auth is not available
+      window.loadDashboardData();
+      window.loadSystemInfo();
+      window.loadActiveInternsPreview();
+      return;
+    }
+    
+    // setLogLevel('Debug'); // Untuk debugging
+    
+    app = initializeApp(firebaseConfig);
+    auth = getAuth(app);
+    db = getFirestore(app);
 
-  async function loadDashboardData() {
     try {
-      // Load current month data
-      const now = new Date();
-      const currentMonth = now.getMonth() + 1;
-      const currentYear = now.getFullYear();
-      
-      // Statistik bulanan
-      const monthlyResponse = await fetch(`${BACKEND_URL}/api/monthly-attendance/${currentYear}/${currentMonth}`);
-      const monthlyData = await monthlyResponse.json();
-      if (!monthlyData.error) {
-        document.getElementById('totalAttendance').textContent = monthlyData.total_attendance;
-        document.getElementById('avgDaily').textContent = monthlyData.avg_daily_attendance;
-      }
-      // Statistik total hari aktif (sepanjang sistem aktif)
-      const rangeResponse = await fetch(`${BACKEND_URL}/api/attendance-dates-with-range`);
-      const rangeData = await rangeResponse.json();
-      if (!rangeData.error) {
-        document.getElementById('activeDays').textContent = rangeData.total_dates;
-      }
-      // Load today's active interns
-      const activeResponse = await fetch(`${BACKEND_URL}/api/today-active-interns`);
-      const activeData = await activeResponse.json();
-      if (!activeData.error) {
-        document.getElementById('activeInterns').textContent = activeData.total_active;
+      if (initialAuthToken) {
+        await signInWithCustomToken(auth, initialAuthToken);
+      } else {
+        await signInAnonymously(auth);
       }
     } catch (error) {
+      console.error("Autentikasi Firebase gagal:", error);
+      window.showToast("Gagal masuk ke sistem. Periksa koneksi.", "error");
+    }
+    
+    // Observer status autentikasi
+    onAuthStateChanged(auth, (user) => {
+      isAuthReady = true;
+      if (user) {
+        userId = user.uid;
+        document.getElementById('currentUserId').textContent = userId;
+        console.log("Pengguna terautentikasi:", userId);
+        window.loadDashboardData();
+        window.loadSystemInfo();
+        window.loadActiveInternsPreview();
+      } else {
+        userId = null;
+        document.getElementById('currentUserId').textContent = "Signed Out";
+        console.log("Pengguna keluar atau gagal autentikasi.");
+        // Anda bisa menambahkan redirect ke login.html di sini jika perlu
+      }
+    });
+  }
+
+  // Exposed signOut function
+  window.signOut = async function() {
+    try {
+      await firebaseSignOut(auth);
+      window.showToast("Berhasil keluar!", "success");
+      // Redirect atau refresh
+      setTimeout(() => {
+        window.location.href = "main.html"; 
+      }, 500);
+    } catch (error) {
+      console.error("Error signing out:", error);
+      window.showToast("Gagal keluar. Coba lagi.", "error");
+    }
+  };
+  
+  // Memulai inisialisasi Firebase
+  initializeFirebase();
+</script>
+
+<script>
+  // =======================================================
+  // DATA LOADING (MOCK/SIMULATION)
+  // Replaced fetch with mock data to work in this environment
+  // =======================================================
+
+  window.viewWeeklyData = function() {
+    window.location.href = 'daftarhadir.html';
+  }
+  
+  // Mock data for simulation
+  const mockDashboardData = {
+    total_attendance: 125,
+    avg_daily_attendance: 6.2,
+    total_dates: 20
+  };
+
+  const mockSystemInfo = {
+    system_start_date: new Date('2024-08-01').toISOString(),
+    current_date: new Date().toISOString()
+  };
+
+  const mockActiveInterns = [
+    { name: "Siti Rahmawati", jobdesk: "Web Developer", recognition_time: new Date().setHours(8, 30, 0, 0), capture_image: 'https://placehold.co/48x48/blue/white?text=SR' },
+    { name: "Budi Santoso", jobdesk: "Data Analyst", recognition_time: new Date().setHours(9, 15, 0, 0), capture_image: 'https://placehold.co/48x48/green/white?text=BS' },
+    { name: "Cindy Larasati", jobdesk: "UI/UX Designer", recognition_time: new Date().setHours(9, 45, 0, 0), capture_image: 'https://placehold.co/48x48/purple/white?text=CL' },
+    { name: "Joko Susilo", jobdesk: "Mobile Dev", recognition_time: new Date().setHours(10, 0, 0, 0), capture_image: 'https://placehold.co/48x48/red/white?text=JS' },
+    { name: "Ayu Tania", jobdesk: "Marketing", recognition_time: new Date().setHours(10, 5, 0, 0), capture_image: 'https://placehold.co/48x48/orange/white?text=AT' }
+  ];
+
+  window.loadDashboardData = async function() {
+    console.log("Memuat data dashboard...");
+    try {
+      // Simulate API call delay
+      await new Promise(resolve => setTimeout(resolve, 800)); 
+      
+      document.getElementById('totalAttendance').textContent = mockDashboardData.total_attendance;
+      document.getElementById('avgDaily').textContent = mockDashboardData.avg_daily_attendance;
+      document.getElementById('activeDays').textContent = mockDashboardData.total_dates;
+
+      // Simulate today's active interns count based on mockActiveInterns
+      document.getElementById('activeInterns').textContent = mockActiveInterns.length;
+
+    } catch (error) {
       console.error('Error loading dashboard data:', error);
+      window.showToast("Gagal memuat data statistik.", "error");
     }
   }
 
-  async function loadSystemInfo() {
+  window.loadSystemInfo = async function() {
+    console.log("Memuat info sistem...");
     try {
-      const response = await fetch(`${BACKEND_URL}/api/system-start-date`);
-      const data = await response.json();
+      await new Promise(resolve => setTimeout(resolve, 500));
+      const data = mockSystemInfo;
       
       const startDate = new Date(data.system_start_date);
       const currentDate = new Date(data.current_date);
       
-      const formattedStartDate = startDate.toLocaleDateString('id-ID', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      });
-      
-      const formattedCurrentDate = currentDate.toLocaleDateString('id-ID', {
-        day: 'numeric',
-        month: 'long',
-        year: 'numeric'
-      });
+      const options = { day: 'numeric', month: 'long', year: 'numeric' };
+
+      const formattedStartDate = startDate.toLocaleDateString('id-ID', options);
+      const formattedCurrentDate = currentDate.toLocaleDateString('id-ID', options);
       
       document.getElementById('systemStartDate').textContent = formattedStartDate;
       document.getElementById('currentDate').textContent = formattedCurrentDate;
@@ -211,72 +327,80 @@
     }
   }
 
-  async function loadActiveInternsPreview() {
+  window.loadActiveInternsPreview = async function() {
+    console.log("Memuat preview intern aktif...");
     try {
-      const response = await fetch(`${BACKEND_URL}/api/today-active-interns`);
-      const data = await response.json();
-      
-      if (data.error) {
-        console.error('Error:', data.error);
-        return;
-      }
+      await new Promise(resolve => setTimeout(resolve, 1200));
       
       const container = document.getElementById('activeInternsPreview');
-      if (data.active_interns.length === 0) {
+      
+      if (mockActiveInterns.length === 0) {
         container.innerHTML = `
-          <div class="text-center text-gray-500 py-4">
-            <p>📝 Belum ada intern yang absen hari ini</p>
+          <div class="text-center text-gray-500 py-6 bg-gray-50 rounded-lg">
+            <p class="font-medium text-lg">📝 Belum ada intern yang absen hari ini</p>
           </div>
         `;
       } else {
         // Tampilkan maksimal 3 intern untuk preview
-        const previewInterns = data.active_interns.slice(0, 3);
-        container.innerHTML = previewInterns.map(intern => `
-          <div class="flex items-center gap-3 p-3 bg-gray-50 rounded-lg">
-            <!-- Capture Image -->
-            <div class="flex-shrink-0">
-              ${intern.capture_image ? `
-                <div class="w-12 h-12 rounded-lg overflow-hidden border border-blue-200">
-                  <img src="${intern.capture_image}" alt="Capture ${intern.name}" 
-                       class="w-full h-full object-cover" 
-                       onerror="this.src='https://via.placeholder.com/48x48/blue/white?text=📷'">
-                </div>
-              ` : `
-                <div class="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <span class="text-blue-600 text-lg">📷</span>
-                </div>
-              `}
-            </div>
-            
-            <!-- Info -->
-            <div class="flex-1 min-w-0">
-              <div class="flex items-center gap-2">
-                <h4 class="font-medium text-gray-800 text-sm">${intern.name}</h4>
-                <span class="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">
-                  ✓
-                </span>
+        const previewInterns = mockActiveInterns.slice(0, 3);
+        
+        container.innerHTML = previewInterns.map(intern => {
+          const recognitionTime = new Date(intern.recognition_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+          return `
+            <div class="flex items-center gap-4 p-3 bg-red-50 rounded-lg border border-red-200 shadow-sm">
+              <!-- Capture Image -->
+              <div class="flex-shrink-0">
+                  <div class="w-12 h-12 rounded-full overflow-hidden border-2 border-red-400 bg-white">
+                    <img src="${intern.capture_image || 'https://via.placeholder.com/48x48/f87171/white?text=P'}" alt="Capture ${intern.name}" 
+                          class="w-full h-full object-cover" 
+                          onerror="this.src='https://via.placeholder.com/48x48/f87171/white?text=P'">
+                  </div>
               </div>
-              <p class="text-xs text-gray-500">${intern.jobdesk} • ⏰ ${new Date(intern.recognition_time).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}</p>
+              
+              <!-- Info -->
+              <div class="flex-1 min-w-0">
+                <div class="flex items-center gap-2">
+                  <h4 class="font-bold text-red-800 text-base">${intern.name}</h4>
+                  <span class="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full font-medium">
+                    ✓ HADIR
+                  </span>
+                </div>
+                <p class="text-sm text-gray-600 truncate">${intern.jobdesk}</p>
+              </div>
+
+              <!-- Time -->
+              <div class="text-right flex-shrink-0">
+                <span class="font-semibold text-red-600 text-sm">⏰ ${recognitionTime}</span>
+              </div>
             </div>
-          </div>
-        `).join('');
+          `;
+        }).join('');
+        
         // Jika ada lebih dari 3 intern, tambahkan indikator
-        if (data.active_interns.length > 3) {
+        if (mockActiveInterns.length > 3) {
           container.innerHTML += `
-            <div class="text-center text-gray-500 py-2">
-              <p class="text-sm">+${data.active_interns.length - 3} intern lainnya</p>
+            <div class="text-center text-gray-600 py-2 mt-2">
+              <p class="text-sm font-semibold">+${mockActiveInterns.length - 3} intern lainnya telah absen hari ini.</p>
             </div>
           `;
         }
       }
     } catch (error) {
       console.error('Error loading active interns preview:', error);
+      container.innerHTML = `
+        <div class="text-center text-red-500 py-4 bg-red-100 rounded-lg">
+          <p>⚠️ Gagal memuat data preview.</p>
+        </div>
+      `;
     }
   }
 
-  function signOut() {
-    window.location.href = "main.html";
-  }
+  // NOTE: Fungsi loadDashboardData, loadSystemInfo, dan loadActiveInternsPreview
+  // akan dipanggil setelah autentikasi Firebase selesai (di dalam onAuthStateChanged).
+  // Jika Anda perlu memanggilnya segera (tanpa menunggu auth), Anda dapat memanggilnya di sini:
+  // window.onload = function() { ... }
+  
 </script>
 </body>
 </html>
