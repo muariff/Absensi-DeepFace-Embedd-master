@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DeepFace Attendance System</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body class="layout-body">
+    <header class="layout-header">
+      <div class="header-logo">
+        <img src="telkomsat.png" alt="Telkomsat Logo" />
+      </div>
+    </header>
+
+    <aside class="layout-sidebar">
+      <a href="main.html" class="sidebar-link">Absensi Wajah</a>
+      <a href="data.html" class="sidebar-link active">Data Absensi Hari Ini</a>
+      <a href="settings.html" class="sidebar-link">Pengaturan & Indexing</a>
+    </aside>
+
+    <main class="layout-main container-card">
+      <div class="content-header">
+        <h2>Data Absensi Hari Ini</h2>
+        <button id="refreshButton" class="btn-refresh">
+          Refresh Data
+        </button>
+      </div>
+
+      <div id="statusArea" class="status-area">Memuat data absensi hari ini...</div>
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>No.</th>
+              <th>Nama</th>
+              <th>Instansi</th>
+              <th>Waktu Absen</th>
+              <th>Jarak Vektor</th>
+              <th>Foto</th>
+            </tr>
+          </thead>
+          <tbody id="attendanceTableBody">
+            <!-- Data akan diisi oleh JavaScript -->
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="layout-footer">
+      © 2025 Telkomsat Bogor
+    </footer>
+
+    <script>
+      const API_BASE_URL = "http://127.0.0.1:8000";
+      const statusArea = document.getElementById("statusArea");
+      const attendanceTableBody = document.getElementById("attendanceTableBody");
+      const refreshButton = document.getElementById("refreshButton");
+
+      function updateStatus(message, type = "info") {
+        statusArea.className = `status-area ${type}`;
+        statusArea.innerHTML = message;
+      }
+
+      async function fetchTodayAttendance() {
+        updateStatus("Memuat data absensi...");
+        attendanceTableBody.innerHTML = "";
+
+        try {
+          const response = await fetch(`${API_BASE_URL}/attendance/today`);
+          if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
+          const data = await response.json();
+          if (data.length === 0) {
+            updateStatus("Belum ada absensi tercatat hari ini.", "info");
+            return;
+          }
+
+          renderTable(data);
+          updateStatus(`Berhasil memuat ${data.length} data absensi.`, "info");
+        } catch (error) {
+          console.error("Error:", error);
+          updateStatus(`Gagal terhubung ke server API: ${error.message}`, "error");
+        }
+      }
+
+      function renderTable(data) {
+        attendanceTableBody.innerHTML = data.map((item, i) => `
+          <tr>
+            <td>${i + 1}</td>
+            <td>${item.name}</td>
+            <td>${item.instansi || item.jobdesk || "N/A"}</td>
+            <td>${new Date(item.timestamp).toLocaleTimeString("id-ID", {hour:"2-digit",minute:"2-digit",second:"2-digit"})}</td>
+            <td>${item.distance ? item.distance.toFixed(4) : "N/A"}</td>
+            <td><img src="${API_BASE_URL}${item.image_path}" alt="Foto ${item.name}" onclick="showImageModal('${API_BASE_URL}${item.image_path}')"></td>
+          </tr>`).join("");
+      }
+
+      function showImageModal(url) {
+        updateStatus(`URL Foto: ${url}`, "info");
+      }
+
+      window.onload = () => {
+        fetchTodayAttendance();
+        refreshButton.addEventListener("click", fetchTodayAttendance);
+      };
+    </script>
+  </body>
+</html>
