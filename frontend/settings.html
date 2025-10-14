@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DeepFace Attendance System</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body class="layout-body">
+    <header class="layout-header">
+      <div class="header-logo">
+        <img src="telkomsat.png" alt="Logo Tel" />
+      </div>
+    </header>
+
+    <aside class="layout-sidebar">
+      <a href="main.html" class="sidebar-link">Absensi Wajah</a>
+      <a href="data.html" class="sidebar-link">Data Absensi Hari Ini</a>
+      <a href="settings.html" class="sidebar-link active">Pengaturan & Indexing</a>
+    </aside>
+
+    <main class="layout-main container-card">
+      <div class="content-header">
+        <h2>Pengaturan Database Wajah</h2>
+        <button id="reloadDbButton" class="btn-refresh">
+          Reload Database
+        </button>
+      </div>
+
+      <div id="reloadStatus" class="status-area">
+        Tekan tombol di atas untuk memuat ulang database wajah.
+      </div>
+
+       <div class="mb-6 p-4 rounded-lg border" style="background-color: #fde9e7; border-color: #e8827e;">
+        <h2 class="text-lg font-semibold mb-2" style="color: #e8827e;">
+            Sinkronisasi & Reload Database
+        </h2>
+        <p class="text-sm text-gray-700">
+            Tekan tombol <b style="color: #e8827e;">Reload Database</b> jika Anda menambah, menghapus, atau mengubah data wajah di folder 
+            <code>faces</code> server. Proses ini akan memperbarui seluruh index wajah ke dalam memori sistem.
+        </p>
+       </div>
+
+      <h2 class="text-xl font-bold text-gray-800 mb-4">Daftar Wajah Terdaftar (<span id="totalFacesCount">0</span>)</h2>
+
+      <div id="listStatus" class="status-area">
+        Memuat daftar wajah...
+      </div>
+
+
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>No.</th>
+              <th>Nama (Folder ID)</th>
+              <th>Jumlah Foto</th>
+              <th class="text-center">Aksi</th>
+            </tr>
+          </thead>
+          <tbody id="registeredFacesTableBody">
+          </tbody>
+        </table>
+      </div>
+    </main>
+
+    <!-- FOOTER -->
+    <footer class="layout-footer">
+      © 2025 Telkomsat Bogor
+    </footer>
+
+    <div id="customModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center z-50">
+      <div class="bg-white p-6 rounded-lg shadow-xl w-96">
+        <h3 id="modalTitle" class="text-lg font-bold mb-4 text-red-600">Konfirmasi Penghapusan</h3>
+        <p id="modalMessage" class="mb-6 text-gray-700"></p>
+        <div class="flex justify-end space-x-3">
+          <button id="modalCancelButton" class="px-4 py-2 bg-gray-300 text-gray-800 rounded-lg hover:bg-gray-400 transition">Batal</button>
+          <button id="modalConfirmButton" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition">Hapus</button>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const API_BASE_URL = "http://127.0.0.1:8000";
+
+      const reloadDbButton = document.getElementById("reloadDbButton");
+      const reloadStatus = document.getElementById("reloadStatus");
+      const registeredFacesTableBody = document.getElementById("registeredFacesTableBody");
+      const listStatus = document.getElementById("listStatus");
+      const totalFacesCount = document.getElementById("totalFacesCount");
+
+      const customModal = document.getElementById("customModal");
+      const modalTitle = document.getElementById("modalTitle");
+      const modalMessage = document.getElementById("modalMessage");
+      const modalCancelButton = document.getElementById("modalCancelButton");
+      const modalConfirmButton = document.getElementById("modalConfirmButton");
+
+      let pendingDeleteId = null;
+
+      function updateReloadStatus(message, type = "info") {
+        reloadStatus.className = "status-area";
+        if (type === "error") reloadStatus.classList.add("error");
+        reloadStatus.innerHTML = message;
+      }
+
+      function updateListStatus(message, type = "info") {
+        listStatus.className = "status-area";
+        if (type === "error") listStatus.classList.add("error");
+        listStatus.innerHTML = message;
+      }
+
+      async function reloadDatabase() {
+        reloadDbButton.disabled = true;
+        updateReloadStatus("Sedang memuat ulang database wajah...");
+        try {
+          const res = await fetch(`${API_BASE_URL}/reload_db`, { method: "POST" });
+          const data = await res.json();
+          if (data.status === "success") {
+            updateReloadStatus(`Database dimuat ulang. Total ${data.total_faces} wajah.`, "success");
+          } else {
+            updateReloadStatus(`Gagal reload: ${data.message}`, "error");
+          }
+          fetchRegisteredFaces();
+        } catch (err) {
+          updateReloadStatus(`Tidak dapat terhubung ke server: ${err.message}`, "error");
+        } finally {
+          reloadDbButton.disabled = false;
+        }
+      }
+
+      async function fetchRegisteredFaces() {
+        updateListStatus("Memuat daftar wajah...");
+        registeredFacesTableBody.innerHTML = "";
+        try {
+          const res = await fetch(`${API_BASE_URL}/list_faces`);
+          const data = await res.json();
+          if (data.status === "error") throw new Error(data.message);
+          renderFacesTable(data.faces);
+          totalFacesCount.textContent = data.faces.length;
+          updateListStatus(`${data.faces.length} data wajah dimuat.`);
+        } catch (err) {
+          updateListStatus(`${err.message}`, "error");
+          totalFacesCount.textContent = "0";
+        }
+      }
+
+      function renderFacesTable(faces) {
+        if (faces.length === 0) {
+          registeredFacesTableBody.innerHTML = `<tr><td colspan="4" class="text-center py-3 text-gray-500">Tidak ada data wajah terdaftar.</td></tr>`;
+          return;
+        }
+        registeredFacesTableBody.innerHTML = faces
+          .map(
+            (face, i) => `
+            <tr>
+              <td>${i + 1}</td>
+              <td>${face.name}</td>
+              <td>${face.count} foto</td>
+              <td class="text-center">
+                <button onclick="showDeleteModal('${face.name}')" class="bg-red-100 text-red-600 hover:bg-red-200 py-1 px-3 rounded-md font-medium transition">
+                  Hapus Folder
+                </button>
+              </td>
+            </tr>`
+          )
+          .join("");
+      }
+
+      function showDeleteModal(name) {
+        pendingDeleteId = name;
+        modalMessage.innerHTML = `Apakah Anda yakin ingin menghapus semua foto di folder <b>${name}</b>?`;
+        customModal.classList.remove("hidden");
+      }
+
+      function hideDeleteModal() {
+        customModal.classList.add("hidden");
+        pendingDeleteId = null;
+      }
+
+      async function deleteFaceData() {
+        if (!pendingDeleteId) return;
+        hideDeleteModal();
+        updateListStatus(`Menghapus data wajah ${pendingDeleteId}...`);
+        try {
+          const res = await fetch(`${API_BASE_URL}/delete_face/${pendingDeleteId}`, { method: "DELETE" });
+          const data = await res.json();
+          if (data.status === "success") {
+            updateListStatus(`Data wajah ${pendingDeleteId} dihapus.`);
+            fetchRegisteredFaces();
+          } else {
+            updateListStatus(`Gagal menghapus: ${data.message}`, "error");
+          }
+        } catch (err) {
+          updateListStatus(`${err.message}`, "error");
+        }
+      }
+
+      window.onload = () => {
+        reloadDbButton.addEventListener("click", reloadDatabase);
+        modalCancelButton.addEventListener("click", hideDeleteModal);
+        modalConfirmButton.addEventListener("click", deleteFaceData);
+        fetchRegisteredFaces();
+      };
+    </script>
+  </body>
+</html>

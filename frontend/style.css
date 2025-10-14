@@ -1,0 +1,182 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap");
+
+body {
+  font-family: "Inter", sans-serif;
+}
+
+.layout-body {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 20px;
+  padding: 20px;
+  background-color: #f3f4f6;
+  min-height: 100vh;
+}
+
+.layout-header {
+  width: 100%;
+  height: 80px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: white;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+  border-radius: 12px;
+  padding: 10px 30px;
+}
+
+.header-logo img {
+  height: 100px;
+  width: auto;
+}
+
+.layout-sidebar {
+  width: 300px;
+  height: 600px;
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+.sidebar-link {
+  text-align: left;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 10px;
+  transition: background 0.3s;
+}
+
+.sidebar-link:hover {
+  background-color: #ee2d26;
+  color: white;
+}
+
+.sidebar-link.active {
+  background-color: #81130d;
+  color: white;
+  box-shadow: 0 3px 6px rgba(129, 19, 13, 0.4);
+}
+
+.layout-main {
+  flex: 1;
+  height: 600px;
+  background: white;
+  border-radius: 12px;
+  padding: 30px;
+  overflow-y: auto;
+}
+
+.container-card {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s ease;
+}
+
+.content-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  border-bottom: 2px solid #e8827e;
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+
+.content-header h2 {
+  font-size: 20px;
+  font-weight: 600;
+  color: #81130d;
+}
+
+.btn-refresh {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #ee2d26;
+  color: white;
+  font-weight: 500;
+  padding: 8px 14px;
+  border-radius: 8px;
+  transition: all 0.3s;
+  box-shadow: 0 3px 8px rgba(238, 45, 38, 0.3);
+}
+
+.btn-refresh:hover {
+  background-color: #81130d;
+}
+
+/* ikon dalam tombol */
+.btn-refresh svg {
+  height: 18px;
+  width: 18px;
+}
+
+.status-area {
+  margin-bottom: 15px;
+  padding: 10px;
+  border-radius: 8px;
+  text-align: center;
+  font-size: 14px;
+  background-color: #f3f4f6;
+  color: #585858;
+}
+
+.status-area.error {
+  background-color: f3f4f6;
+}
+
+.table-container {
+  overflow-x: auto;
+  border-radius: 10px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.05);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+
+thead {
+  background-color: #81130d;
+  color: white;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 10px 15px;
+}
+
+tbody tr {
+  border-bottom: 1px solid #e5e7eb;
+  transition: background 0.15s ease-in-out;
+}
+
+tbody tr:hover {
+  background-color: #fbeaea;
+}
+
+td img {
+  height: 50px;
+  width: 50px;
+  border-radius: 9999px;
+  object-fit: cover;
+  margin: auto;
+  display: block;
+  cursor: pointer;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.layout-footer {
+  width: 100%;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #585858;
+  font-size: 13px;
+}
