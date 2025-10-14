@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Data Collector - DeepFace</title>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+
+  <body class="layout-body">
+    <header class="layout-header">
+      <div class="header-logo">
+        <img src="telkomsat.png" alt="Telkomsat" />
+      </div>
+    </header>
+
+    <aside class="layout-sidebar">
+      <a href="main.html" class="sidebar-link">Absensi Wajah</a>
+      <a href="data.html" class="sidebar-link">Data Absensi Hari Ini</a>
+      <a href="data_collector.html" class="sidebar-link active">Data Collector</a>
+      <a href="settings.html" class="sidebar-link">Pengaturan & Indexing</a>
+    </aside>
+
+    <main class="layout-main container-card">
+      <div class="content-header">
+        <h2>Pengambilan Dataset Manual</h2>
+        <button id="refreshBtn" class="btn-refresh" onclick="initCamera()">
+          Refresh Kamera
+        </button>
+      </div>
+
+      <div class="mb-6">
+        <label class="block text-sm font-medium text-gray-700 mb-2">Nama Lengkap:</label>
+        <input
+          id="personName"
+          type="text"
+          class="border border-gray-300 rounded-md p-2 w-full focus:ring-blue-500 focus:border-blue-500"
+          placeholder="Contoh: Ujang Pesek"
+        />
+      </div>
+
+      <div class="flex flex-col items-center mb-6">
+        <video id="video" class="rounded-lg mb-4 border" autoplay playsinline></video>
+        <canvas id="canvas" class="hidden"></canvas>
+
+        <!-- Tombol sejajar -->
+        <div class="flex gap-4">
+          <button
+            id="captureBtn"
+            class="bg-green-600 hover:bg-green-700 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition duration-300 transform active:scale-95 disabled:bg-gray-400 flex items-center"
+            disabled
+          >
+            Ambil Gambar
+          </button>
+
+          <button
+            id="finishBtn"
+            class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition duration-300 transform active:scale-95 disabled:bg-gray-400 flex items-center"
+            disabled
+          >
+            Selesai
+          </button>
+        </div>
+      </div>
+
+      <div id="statusArea" class="status-area">
+        Isi nama lengkap, lalu ambil 10 gambar wajah dari berbagai sudut.
+      </div>
+    </main>
+
+    <footer class="layout-footer">
+      &copy; 2025 Telkomsat Bogor
+    </footer>
+
+    <script>
+      const API_BASE = "http://127.0.0.1:8000";
+      const video = document.getElementById("video");
+      const canvas = document.getElementById("canvas");
+      const captureBtn = document.getElementById("captureBtn");
+      const finishBtn = document.getElementById("finishBtn");
+      const personName = document.getElementById("personName");
+      const statusArea = document.getElementById("statusArea");
+      const TARGET_COUNT = 10;
+      let capturedCount = 0;
+      let stream = null;
+
+      function updateStatus(msg, type = "info") {
+        const map = {
+          success: "status-area bg-green-100 text-green-700",
+          error: "status-area bg-red-100 text-red-700",
+          warning: "status-area bg-yellow-100 text-yellow-700",
+          info: "status-area bg-gray-100 text-gray-700",
+        };
+        statusArea.className = map[type] || "status-area";
+        statusArea.innerHTML = msg;
+      }
+
+      async function initCamera() {
+        try {
+          stream = await navigator.mediaDevices.getUserMedia({ video: true });
+          video.srcObject = stream;
+          captureBtn.disabled = false;
+          updateStatus("Kamera siap digunakan.", "info");
+        } catch (err) {
+          updateStatus("Gagal mengakses kamera: " + err.message, "error");
+        }
+      }
+
+      async function uploadImage(blob) {
+        const formData = new FormData();
+        formData.append("name", personName.value);
+        formData.append("file", blob, `${capturedCount + 1}.jpg`);
+
+        const res = await fetch(`${API_BASE}/upload_dataset`, {
+          method: "POST",
+          body: formData,
+        });
+
+        return await res.json();
+      }
+
+      async function captureFrame() {
+        if (!personName.value.trim()) {
+          updateStatus("Masukkan nama terlebih dahulu!", "warning");
+          return;
+        }
+
+        const ctx = canvas.getContext("2d");
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(async (blob) => {
+          const res = await uploadImage(blob);
+          capturedCount++;
+          updateStatus(`Gambar ke-${capturedCount} tersimpan (${res.message})`, "success");
+
+          if (capturedCount >= TARGET_COUNT) {
+            updateStatus("Pengambilan selesai! Klik tombol selesai.", "success");
+            captureBtn.disabled = true;
+            finishBtn.disabled = false;
+          }
+        }, "image/jpeg", 0.9);
+      }
+
+      captureBtn.addEventListener("click", captureFrame);
+      finishBtn.addEventListener("click", () => {
+        alert(`Selesai! Total ${capturedCount} gambar diambil untuk ${personName.value}.`);
+        window.location.href = "main.html";
+      });
+
+      window.onload = initCamera;
+    </script>
+  </body>
+</html>

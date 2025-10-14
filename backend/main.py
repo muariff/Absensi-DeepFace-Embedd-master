@@ -10,15 +10,18 @@ from datetime import date, timedelta
 import io
 import webbrowser 
 from typing import List, Optional 
+from fastapi import FastAPI, UploadFile, File, Form
+from datetime import datetime
 
 # Import gTTS library for automatic Text-to-Speech generation
 from gtts import gTTS 
-# Import library FastAPI
+# BARU: Tambahkan Form untuk menerima data non-file dari form
 from fastapi import FastAPI, File, UploadFile, HTTPException, Form 
 from starlette.requests import Request
 from starlette.staticfiles import StaticFiles
 from starlette.status import HTTP_302_FOUND
-from starlette.responses import RedirectResponse, JSONResponse 
+# BARU: Impor RedirectResponse
+from starlette.responses import RedirectResponse 
 
 # Import DeepFace (pastikan sudah terinstal: pip install deepface)
 try:
@@ -28,47 +31,45 @@ except ImportError:
     DeepFace = None # Fallback jika DeepFace tidak terinstal
 
 # --- PATH & KONFIGURASI ---
-# Asumsi struktur: ProjectRoot/backend/main.py, ProjectRoot/frontend/main.html, ProjectRoot/backend/captured_images, dll.
+# KOREKSI KRITIS 1: PROJECT_ROOT diubah agar menunjuk ke direktori induk (Absensi_DeepFace_Embedd)
 PROJECT_ROOT = Path(__file__).resolve().parent.parent 
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # Impor fungsi dan konfigurasi dari file lain (asumsi sudah ada)
+# KOREKSI KRITIS 2: Menggunakan relative import karena main.py berada di dalam folder backend
 try:
-    # Mengasumsikan `utils.py` berada di direktori yang sama (backend)
-    from utils import extract_face_features, DISTANCE_THRESHOLD 
+    from .utils import extract_face_features, DISTANCE_THRESHOLD
 except ImportError:
-    try:
-        from .utils import extract_face_features, DISTANCE_THRESHOLD
-    except ImportError:
-        print("⚠️ Peringatan: Gagal mengimpor utilitas (utils.py). Pastikan file ini ada.")
-        def extract_face_features(image_bytes): return []
-        DISTANCE_THRESHOLD = 0.5
+    print("⚠️ Peringatan: Gagal mengimpor utilitas dari backend/utils.py. Pastikan file ini ada.")
+    # Fallback/Dummy jika utilitas tidak ditemukan
+    def extract_face_features(image_bytes): return []
+    DISTANCE_THRESHOLD = 0.5
 
 # Konfigurasi DB
 DB_HOST = "localhost"
 DB_NAME = "vector_db"
-DB_USER = "admin" 
+DB_USER = "macbookpro"  
 DB_PASSWORD = "deepfacepass" 
 DB_PATH = PROJECT_ROOT / "backend" / "attendance.db" # Database SQLite untuk log
 
 # FOLDER UNTUK GAMBAR
 CAPTURED_IMAGES_DIR = PROJECT_ROOT / "backend" / "captured_images" # Gambar hasil absensi
 FACES_DIR = PROJECT_ROOT / "backend" / "faces" # Gambar sumber untuk indexing DeepFace
-FRONTEND_STATIC_DIR = PROJECT_ROOT / "frontend" # Folder untuk file HTML, JS, CSS
+# PERBAIKAN KRITIS: Mengacu langsung ke PROJECT_ROOT agar sesuai dengan struktur yang diinginkan (main.html, data.html, settings.html di root)
+FRONTEND_STATIC_DIR = PROJECT_ROOT / "frontend"  # Folder untuk file HTML (main.html, data.html, settings.html) di root proyek
 AUDIO_FILES_DIR = PROJECT_ROOT / "backend" / "generated_audio"
 
 # --- INISIALISASI APLIKASI ---
-app = FastAPI(title="DeepFace Absen" \
-"si API")
+app = FastAPI(title="DeepFace Absensi API")
 
 # Mount folder audio
 app.mount("/audio", StaticFiles(directory=str(AUDIO_FILES_DIR), check_dir=True), name="generated_audio")
 
-# Mount folder gambar absensi untuk melayani gambar absensi yang diambil
+# Mount folder gambar absensi 
 app.mount("/images", StaticFiles(directory=str(CAPTURED_IMAGES_DIR), check_dir=True), name="captured_images")
 
 # Mount folder gambar sumber wajah (untuk indexing dan penghapusan)
-app.mount("/faces", StaticFiles(directory=str(FACES_DIR), check_dir=True), name="faces")
+app.mount("/faces_data", StaticFiles(directory=str(FACES_DIR), check_dir=True), name="faces_data")
 
 
 # --- FUNGSI AUDIO GENERATION ---
@@ -82,11 +83,12 @@ def generate_audio_file(filename: str, text: str):
         return
 
     try:
-        print(f"   -> 🔊 Generating TTS file: {filename} for text: '{text}'...")
+        print(f"   -> 🔊 Generating TTS file: {filename} for text: '{text}'...")
         tts = gTTS(text=text, lang='id')
         tts.save(str(audio_path))
-        print(f"   -> ✅ TTS file {filename} successfully generated.")
+        print(f"   -> ✅ TTS file {filename} successfully generated.")
     except Exception as e:
+        # Gagal generate audio jika tidak ada koneksi internet
         print(f"❌ ERROR: Gagal generate file audio {filename}. Pastikan Anda memiliki koneksi internet: {e}")
         
 # --- FUNGSI DATABASE HELPERS ---
@@ -97,9 +99,6 @@ def initialize_sqlite_db():
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
-        # NOTE: Tabel interns mungkin tidak perlu di-update karena data instansi/kategori
-        # akan diambil dari PostgreSQL (intern_embeddings) saat absensi.
-        # Namun, kita tetap pertahankan skema aslinya.
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS interns (
                 id INTEGER PRIMARY KEY,
@@ -108,19 +107,18 @@ def initialize_sqlite_db():
             );
         """)
         
+        # Contoh data yang dijamin ada
         cursor.execute(
             "INSERT OR IGNORE INTO interns (name, instansi) VALUES (?, ?)",
             ("Said", "Software Engineer")
         )
 
-        # <<< KOREKSI: KATEGORI - Tambah kolom kategori di attendance_logs
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS attendance_logs (
                 log_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 intern_id INTEGER,
                 intern_name TEXT NOT NULL,
                 instansi TEXT,
-                kategori TEXT,  
                 image_url TEXT, 
                 absent_at TEXT,
                 FOREIGN KEY (intern_id) REFERENCES interns(id)
@@ -131,6 +129,7 @@ def initialize_sqlite_db():
         conn.close()
         print("✅ SQLite Database (attendance.db) berhasil diinisialisasi.")
         
+        # Pastikan semua folder yang akan di-mount sudah ada
         os.makedirs(CAPTURED_IMAGES_DIR, exist_ok=True)
         os.makedirs(FACES_DIR, exist_ok=True) 
         os.makedirs(AUDIO_FILES_DIR, exist_ok=True)
@@ -141,11 +140,11 @@ def initialize_sqlite_db():
 
 def get_or_create_intern(name: str, instansi: str = "Intern"):
     """Mendapatkan ID intern yang sudah ada atau membuat entri baru di SQLite."""
-    # Fungsi ini tidak perlu diubah.
     try:
         conn = connect_sqlite_db()
         cursor = conn.cursor()
         
+        # Cek apakah nama sudah ada
         cursor.execute("SELECT id FROM interns WHERE name = ?", (name,))
         result = cursor.fetchone()
         
@@ -154,6 +153,7 @@ def get_or_create_intern(name: str, instansi: str = "Intern"):
             conn.close()
             return intern_id
         else:
+            # Jika belum ada, buat entri baru
             cursor.execute(
                 "INSERT INTO interns (name, instansi) VALUES (?, ?)",
                 (name, instansi)
@@ -163,9 +163,10 @@ def get_or_create_intern(name: str, instansi: str = "Intern"):
             conn.close()
             print(f"✅ Intern baru '{name}' (ID: {intern_id}) berhasil ditambahkan ke SQLite.")
             return intern_id
-            
+             
     except Exception as e:
         print(f"❌ Gagal mendapatkan/membuat entri intern di SQLite: {e}")
+        # Tetap raise Exception agar API tahu proses gagal
         raise Exception(f"Gagal mengelola data intern: {e}")
 
 def connect_vector_db():
@@ -174,6 +175,7 @@ def connect_vector_db():
         return psycopg2.connect(host=DB_HOST, database=DB_NAME, user=DB_USER, password=DB_PASSWORD)
     except psycopg2.Error as e:
         print(f"❌ Gagal koneksi ke Database Vektor: {e}")
+        # Mengganti raise HTTPException dengan pesan yang lebih informatif untuk logging
         raise Exception("Database Vektor tidak terhubung/konfigurasi salah.")
 
 def connect_sqlite_db():
@@ -201,8 +203,7 @@ def check_duplicate_attendance(intern_name: str) -> bool:
         print(f"❌ Gagal memeriksa duplikasi absensi: {e}")
         return False
 
-# <<< KOREKSI: KATEGORI - Tambah parameter kategori ke fungsi log_attendance
-def log_attendance(intern_name: str, instansi: str, kategori: str, image_url: str):
+def log_attendance(intern_name: str, instansi: str, image_url: str):
     """Mencatat log absensi ke database SQLite dan mengembalikan ID intern."""
     try:
         conn = connect_sqlite_db()
@@ -213,15 +214,14 @@ def log_attendance(intern_name: str, instansi: str, kategori: str, image_url: st
         
         intern_id = intern_id_tuple[0] if intern_id_tuple else None
         
-        # <<< KOREKSI: KATEGORI - Update query INSERT untuk menyertakan kategori
         cursor.execute(
-            "INSERT INTO attendance_logs (intern_id, intern_name, instansi, kategori, image_url, absent_at) VALUES (?, ?, ?, ?, ?, datetime('now', 'localtime'))",
-            (intern_id, intern_name, instansi, kategori, image_url)
+            "INSERT INTO attendance_logs (intern_id, intern_name, instansi, image_url, absent_at) VALUES (?, ?, ?, ?, datetime('now', 'localtime'))",
+            (intern_id, intern_name, instansi, image_url)
         )
         conn.commit()
         conn.close()
         return intern_id
-            
+             
     except Exception as e:
         print(f"❌ Gagal mencatat log absensi: {e}")
         return None
@@ -238,29 +238,6 @@ def delete_face_files(name: str):
             return False
     return False
 
-# --- FUNGSI BARU UNTUK RESET ABSENSI (HARI INI) ---
-def reset_attendance_logs():
-    """Menghapus SEMUA log absensi HARI INI dari tabel attendance_logs."""
-    try:
-        conn = connect_sqlite_db()
-        cursor = conn.cursor()
-        
-        # Menghapus semua baris dari tabel attendance_logs HARI INI
-        today_date = date.today().strftime('%Y-%m-%d')
-        cursor.execute("DELETE FROM attendance_logs WHERE absent_at LIKE ?", (f"{today_date}%",))
-
-        deleted_count = cursor.rowcount
-        conn.commit()
-        conn.close()
-        
-        return deleted_count
-        
-    except Exception as e:
-        print(f"❌ Gagal mereset log absensi: {e}")
-        raise Exception(f"Gagal mereset log absensi di SQLite: {e}")
-# -------------------------------------
-
-
 # --- HOOK UNTUK MEMBUKA BROWSER OTOMATIS ---
 
 @app.on_event("startup")
@@ -268,8 +245,11 @@ async def startup_event():
     """Melakukan inisialisasi DB dan membuka browser saat startup."""
     initialize_sqlite_db()
     
+    # Membuka browser otomatis ke main.html
     try:
+        # Menunggu sebentar untuk memastikan server siap
         time.sleep(1) 
+        # Cukup buka root, nanti akan diredirect oleh endpoint baru di bawah
         webbrowser.open("http://127.0.0.1:8000/") 
         print("\n=============================================")
         print("🌐 Aplikasi DeepFace Absensi siap.")
@@ -279,11 +259,12 @@ async def startup_event():
         print(f"⚠️ Gagal membuka browser otomatis: {e}")
         
 
-# --- ENDPOINT UTAMA & STATIC FILES ---
+# --- ENDPOINT UTAMA (PERBAIKAN 404) ---
 
 @app.get("/")
 async def redirect_to_main():
     """Mengalihkan permintaan root ke main.html untuk melayani halaman utama."""
+    # Mengalihkan ke main.html secara eksplisit
     return RedirectResponse(url="/main.html", status_code=HTTP_302_FOUND)
 
 
@@ -295,13 +276,21 @@ async def register_new_face(
     instansi: str = Form("Intern", description="Jabatan intern."),
     face_image: UploadFile = File(..., description="Gambar wajah yang jelas untuk registrasi.")
 ):
-    """[Jangka Panjang] Mendaftarkan wajah baru ke dalam sistem secara dinamis."""
+    """
+    [Jangka Panjang] Mendaftarkan wajah baru ke dalam sistem secara dinamis.
+    1. Menyimpan data intern ke SQLite (jika belum ada).
+    2. Menyimpan gambar ke disk (backend/faces).
+    3. Ekstrak Embedding (DeepFace.represent).
+    4. Menyimpan Embedding ke PostgreSQL/pgvector.
+    """
+    
     if DeepFace is None:
         raise HTTPException(status_code=500, detail="DeepFace tidak terinstal. Registrasi tidak dapat dilakukan.")
 
     print(f"\n[API] Menerima permintaan registrasi untuk: {person_name} ({instansi})")
     
     # 1. Sanitize Nama dan Tentukan Path Penyimpanan
+    # Hapus spasi dan ganti dengan underscore untuk nama folder
     safe_name = person_name.strip().replace(' ', '_').replace('/', '_').replace('\\', '_')
     if not safe_name:
         raise HTTPException(status_code=400, detail="Nama orang tidak boleh kosong.")
@@ -309,6 +298,7 @@ async def register_new_face(
     person_dir = FACES_DIR / safe_name
     person_dir.mkdir(parents=True, exist_ok=True)
     
+    # Dapatkan ID Intern dari SQLite (atau buat baru)
     try:
         intern_id = get_or_create_intern(person_name, instansi)
     except Exception as e:
@@ -321,6 +311,7 @@ async def register_new_face(
     file_path_on_disk = person_dir / unique_filename
     
     try:
+        # Pindahkan file yang diupload ke lokasi permanen
         with open(file_path_on_disk, "wb") as buffer:
             shutil.copyfileobj(face_image.file, buffer)
             
@@ -333,17 +324,20 @@ async def register_new_face(
 
     # 3. Ekstrak Embedding Wajah
     try:
+        # Menggunakan DeepFace.represent untuk memproses gambar yang baru disimpan
         embedding_objs = DeepFace.represent(
             img_path=full_path_str, 
             model_name="Facenet512", 
             enforce_detection=True
         )
         
+        # Ambil vektor embedding pertama (asumsi satu wajah per gambar)
         embedding_vector = embedding_objs[0]["embedding"]
         
         print(f"[DEEPFACE] Sukses mendapatkan embedding.")
 
     except Exception as e:
+        # Jika DeepFace gagal mendeteksi wajah, hapus file yang tadi disimpan
         os.remove(file_path_on_disk)
         print(f"[ERROR] DeepFace gagal mendeteksi wajah: {e}")
         raise HTTPException(
@@ -356,10 +350,9 @@ async def register_new_face(
         conn = connect_vector_db()
         cursor = conn.cursor()
         
+        # Konversi array float Python menjadi string array PostgreSQL
         vector_string = "[" + ",".join(map(str, embedding_vector)) + "]"
         
-        # NOTE: Endpoint ini adalah JANGKA PANJANG dan mungkin butuh penyesuaian skema.
-        # Untuk saat ini, kita biarkan skema aslinya
         cursor.execute("""
             INSERT INTO intern_embeddings (intern_id, name, instansi, embedding, file_path)
             VALUES (%s, %s, %s, %s::vector, %s)
@@ -371,12 +364,14 @@ async def register_new_face(
         print(f"[DB] Sukses menyimpan data embedding untuk ID: {intern_id}")
 
     except Exception as e:
+        # Jika database gagal, hapus juga file yang tadi disimpan
         os.remove(file_path_on_disk)
         print(f"[ERROR] Gagal menyimpan ke database vektor: {e}")
         raise HTTPException(status_code=500, detail="Gagal menyimpan data embedding ke database.")
         
+    # Tentukan URL agar frontend dapat melihat gambar
     relative_url_path = f"{safe_name}/{unique_filename}"
-    file_url = f"/faces/{relative_url_path}"
+    file_url = f"/faces_data/{relative_url_path}"
 
     return {
         "status": "success",
@@ -405,16 +400,17 @@ async def recognize_face(file: UploadFile = File(...)):
     
     new_embedding = emb_list[0] 
 
-    # 2. PENCARIAN VEKTOR DI DATABASE VEKTOR (POSTGRESQL)
+    # 2. PENCARIAN VEKTOR DI DATABASE VEKTOR
     try:
         conn = connect_vector_db()
         cursor = conn.cursor()
         
+        # Konversi array float Python menjadi string array PostgreSQL
         vector_string = "[" + ",".join(map(str, new_embedding)) + "]"
 
-        # <<< KOREKSI: KATEGORI - Tambah kolom kategori di SELECT
+        # Menggunakan operator <=> (jarak kosinus) dari ekstensi pgvector
         cursor.execute(f"""
-            SELECT name, instansi, kategori, embedding <=> '{vector_string}'::vector AS distance
+            SELECT name, instansi, embedding <=> '{vector_string}'::vector AS distance
             FROM intern_embeddings
             ORDER BY distance ASC
             LIMIT 1
@@ -424,8 +420,7 @@ async def recognize_face(file: UploadFile = File(...)):
         conn.close()
 
         if result:
-            # <<< KOREKSI: KATEGORI - Ambil nilai kategori dari hasil fetch
-            name, instansi, kategori, distance = result
+            name, instansi, distance = result
             elapsed_time = time.time() - start_time
             
             # 3. VERIFIKASI AMBANG BATAS AKURASI
@@ -437,39 +432,30 @@ async def recognize_face(file: UploadFile = File(...)):
                     audio_filename = f"duplicate_{name.replace(' ', '_')}.mp3"
                     generate_audio_file(audio_filename, f"{name}, Anda sudah absen hari ini. Selamat bekerja.")
                     
-                    # <<< KOREKSI: KATEGORI - Tambah kategori di JSON response duplikat
-                    return {"status": "duplicate", "name": name, "instansi": instansi, "kategori": kategori, "distance": f"{distance:.4f}", "latency": f"{elapsed_time:.2f}s", "track_id": audio_filename, "image_url": image_url_for_db} 
+                    return {"status": "duplicate", "name": name, "instansi": instansi, "distance": f"{distance:.4f}", "latency": f"{elapsed_time:.2f}s", "track_id": audio_filename, "image_url": image_url_for_db} 
                 
                 # --- LOGIKA PENYIMPANAN GAMBAR ABSENSI ---
                 timestamp = time.strftime("%Y%m%d_%H%M%S")
-                clean_name = name.strip().replace(' ', '_').replace('.', '').replace('/', '_').replace('\\', '_').lower()
+                # Menggunakan nama yang sudah dibersihkan
+                clean_name = name.replace(' ', '_').replace('.', '').lower()
                 image_filename = f"{timestamp}_{clean_name}.jpg"
                 image_path = CAPTURED_IMAGES_DIR / image_filename
                 
-                temp_image_url = ""
-                try:
-                    # Mencoba menyimpan file gambar
-                    with open(image_path, "wb") as f:
-                        f.write(image_bytes)
-                    
-                    temp_image_url = f"/images/{image_filename}"
-                    print(f"   -> ✅ File gambar absensi disimpan: {image_filename}")
-                except Exception as file_error:
-                    print(f"   ❌ KRITIS: Gagal menyimpan gambar absensi untuk {name}. Error: {file_error}")
-                    
-                image_url_for_db = temp_image_url
+                with open(image_path, "wb") as f:
+                    f.write(image_bytes)
+                
+                image_url_for_db = f"/images/{image_filename}"
                 # --- END LOGIKA PENYIMPANAN GAMBAR ABSENSI ---
                 
                 # Absensi Berhasil: Catat ke DB
-                # <<< KOREKSI: KATEGORI - Kirim nilai kategori ke log_attendance
-                log_attendance(name, instansi, kategori, image_url_for_db) 
-                print(f"✅ DETEKSI BERHASIL: {name} ({kategori}) | Jarak: {distance:.4f} | Latensi: {elapsed_time:.2f}s | Image URL: {image_url_for_db if image_url_for_db else 'Gagal Simpan Gambar'}")
+                log_attendance(name, instansi, image_url_for_db) 
+                print(f"✅ DETEKSI BERHASIL: {name} | Jarak: {distance:.4f} | Latensi: {elapsed_time:.2f}s | Gambar disimpan: {image_filename}")
                 
                 audio_filename = f"welcome_{clean_name}.mp3"
                 generate_audio_file(audio_filename, f"Selamat datang, {name}. Absensi berhasil dicatat.")
                 
-                # <<< KOREKSI: KATEGORI - Tambah kategori di JSON response sukses
-                return {"status": "success", "name": name, "instansi": instansi, "kategori": kategori, "distance": f"{distance:.4f}", "latency": f"{elapsed_time:.2f}s", "track_id": audio_filename, "image_url": image_url_for_db}
+                # Mengembalikan image_url dan jarak yang sudah diformat
+                return {"status": "success", "name": name, "instansi": instansi, "distance": f"{distance:.4f}", "latency": f"{elapsed_time:.2f}s", "track_id": audio_filename, "image_url": image_url_for_db}
             else:
                 # ⚠️ Tidak Dikenali (Jarak Terlalu Jauh)
                 print(f"❌ DETEKSI GAGAL: Jarak Terlalu Jauh ({distance:.4f}) | Latensi: {elapsed_time:.2f}s")
@@ -483,6 +469,7 @@ async def recognize_face(file: UploadFile = File(...)):
 
     except Exception as e:
         print(f"❌ ERROR PENCARIAN/ABSENSI: {e}")
+        # Jika koneksi DB vektor gagal, akan ada pesan error yang lebih umum
         generate_audio_file("S004.mp3", "Kesalahan server terjadi. Mohon hubungi admin.")
         return {"status": "error", "message": f"Kesalahan server: {str(e)}", "track_id": "S004.mp3", "image_url": image_url_for_db}
 
@@ -497,9 +484,9 @@ async def get_today_attendance():
         conn = connect_sqlite_db()
         cursor = conn.cursor()
         
-        # <<< KOREKSI: KATEGORI - Tambah kolom kategori di SELECT
+        # Mengambil semua log absensi hari ini, diurutkan berdasarkan waktu terbaru
         cursor.execute("""
-            SELECT intern_name, instansi, kategori, absent_at, image_url
+            SELECT intern_name, instansi, absent_at, image_url
             FROM attendance_logs 
             WHERE absent_at LIKE ?
             ORDER BY absent_at DESC
@@ -509,18 +496,17 @@ async def get_today_attendance():
         conn.close()
 
         attendance_list = []
-        # <<< KOREKSI: KATEGORI - Ambil nilai kategori dari hasil fetch
-        for name, instansi, kategori, time_str, image_url in results: 
+        for name, instansi, time_str, image_url in results: 
+            # Mengembalikan list yang sesuai dengan format yang diharapkan data.html
             attendance_list.append({
                 "name": name,
                 "instansi": instansi,
-                "kategori": kategori, # <<< Tambahkan kategori ke response
                 "timestamp": time_str,
-                "distance": 0.0000, 
+                "distance": 0.0000, # Placeholder (tidak disimpan di log DB)
                 "image_path": image_url 
             })
             
-        return attendance_list 
+        return attendance_list # Return list directly
 
     except Exception as e:
         print(f"❌ Error mengambil daftar absensi hari ini: {e}")
@@ -528,30 +514,13 @@ async def get_today_attendance():
 
 # --- ENDPOINTS PENGATURAN (settings.html) ---
 
-# ✅ PERBAIKAN KRITIS: Endpoint disesuaikan menjadi /reset_absensi dengan metode POST
-@app.post("/reset_absensi") 
-async def reset_daily_attendance():
-    """Menghapus semua log absensi yang tercatat untuk hari ini."""
-    try:
-        deleted_count = reset_attendance_logs()
-        
-        print(f"✅ RESET ABSENSI BERHASIL: {deleted_count} log absensi hari ini dihapus.")
-        
-        return JSONResponse(content={
-            "status": "success", 
-            "message": f"Berhasil mereset log absensi hari ini. Total {deleted_count} log dihapus.",
-            "deleted_count": deleted_count
-        })
-
-    except Exception as e:
-        print(f"❌ Error saat mereset absensi: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-# ------------------------------------------
-
 @app.post("/reload_db") # Digunakan oleh settings.html
 async def reload_db():
     """Mensimulasikan operasi indexing/reload database wajah."""
     try:
+        # ASUMSI: Proses indexing (memindai FACES_DIR, menghitung vektor, dan
+        # menyimpannya ke intern_embeddings) dilakukan di sini.
+        
         conn = connect_vector_db()
         cursor = conn.cursor()
         cursor.execute("SELECT COUNT(DISTINCT name) FROM intern_embeddings")
@@ -573,6 +542,7 @@ async def list_registered_faces():
         conn = connect_vector_db()
         cursor = conn.cursor()
         
+        # Mengambil nama unik dan jumlah foto yang diwakilinya
         cursor.execute("""
             SELECT name, COUNT(*) 
             FROM intern_embeddings
@@ -583,6 +553,7 @@ async def list_registered_faces():
         results = cursor.fetchall()
         conn.close()
 
+        # Jumlah foto di sini adalah jumlah vektor yang terindeks untuk nama tersebut
         faces_list = [{"name": name, "count": count} for name, count in results]
             
         return {"status": "success", "faces": faces_list}
@@ -610,6 +581,7 @@ async def delete_face(name: str):
         if deleted_count > 0 or file_deleted:
             print(f"✅ Hapus Wajah Berhasil: {name}. Vektor dihapus: {deleted_count}. File dihapus: {file_deleted}")
             
+            # Memanggil reload DB (simulasi) setelah penghapusan penting agar sistem segera sinkron
             await reload_db() 
             
             return {"status": "success", "message": f"Data wajah '{name}' berhasil dihapus. Vektor: {deleted_count} dihapus."}
@@ -700,12 +672,11 @@ async def get_attendance_by_date(date: str):
         conn = connect_sqlite_db()
         cursor = conn.cursor()
         
-        # <<< KOREKSI: KATEGORI - Tambah kolom kategori di SELECT
         cursor.execute("""
-            SELECT T1.intern_name, T1.instansi, T1.kategori, MAX(T1.absent_at), T1.image_url
+            SELECT T1.intern_name, T1.instansi, MAX(T1.absent_at), T1.image_url
             FROM attendance_logs T1
             WHERE T1.absent_at LIKE ?
-            GROUP BY T1.intern_name, T1.instansi, T1.kategori, T1.image_url
+            GROUP BY T1.intern_name, T1.instansi, T1.image_url
             ORDER BY MAX(T1.absent_at) DESC
         """, (f"{date}%",))
         
@@ -713,15 +684,13 @@ async def get_attendance_by_date(date: str):
         conn.close()
 
         attendance_list = []
-        # <<< KOREKSI: KATEGORI - Ambil nilai kategori dari hasil fetch
-        for name, instansi, kategori, time_str, image_url in results:
+        for name, instansi, time_str, image_url in results:
             attendance_list.append({
                 "name": name,
                 "instansi": instansi,
-                "kategori": kategori, # <<< Tambahkan kategori ke response
                 "recognition_time": time_str,
                 "status": "Hadir",
-                "photo": image_url 
+                "photo": image_url # Kunci disesuaikan dengan frontend
             })
             
         return {"date": date, "attendees": attendance_list, "total_unique": len(attendance_list)}
@@ -759,8 +728,7 @@ async def get_monthly_attendance(year: int, month: int):
             SELECT 
                 SUBSTR(absent_at, 1, 10) AS log_date, 
                 intern_name, 
-                instansi,
-                kategori  -- <<< KOREKSI: KATEGORI - Tambah kolom kategori
+                instansi
             FROM attendance_logs 
             WHERE absent_at LIKE ?
             GROUP BY log_date, intern_name
@@ -770,12 +738,11 @@ async def get_monthly_attendance(year: int, month: int):
         daily_log_results = cursor.fetchall()
         
         daily_stats_map = {}
-        # <<< KOREKSI: KATEGORI - Ambil nilai kategori dari hasil fetch
-        for log_date, intern_name, instansi, kategori in daily_log_results:
+        for log_date, intern_name, instansi in daily_log_results:
             if log_date not in daily_stats_map:
                 daily_stats_map[log_date] = []
-            daily_stats_map[log_date].append({"name": intern_name, "instansi": instansi, "kategori": kategori}) # <<< Tambahkan kategori
-        
+            daily_stats_map[log_date].append({"name": intern_name, "instansi": instansi})
+
         daily_stats = [{"date": d, "attendees": a} for d, a in daily_stats_map.items()]
         
         conn.close()
@@ -793,6 +760,42 @@ async def get_monthly_attendance(year: int, month: int):
         print(f"❌ Error mengambil data bulanan: {e}")
         return {"error": str(e), "total_attendance": 0, "unique_days": 0, "avg_daily_attendance": 0, "daily_stats": []}
 
+# Lokasi utama penyimpanan dataset
+DATASET_DIR = Path("data/dataset")
+DATASET_DIR.mkdir(parents=True, exist_ok=True)
+
+@app.post("/upload_dataset")
+async def upload_dataset(
+    name: str = Form(...),
+    file: UploadFile = File(...),
+):
+    """
+    Simpan dataset manual ke folder data/dataset/<nama_orang>/ dengan format 1.jpg, 2.jpg, dst.
+    """
+    # Bersihkan nama agar aman jadi nama folder
+    person_name = name.strip().replace(" ", "_")
+    target_dir = DATASET_DIR / person_name
+    target_dir.mkdir(parents=True, exist_ok=True)
+
+    # Hitung jumlah file yang sudah ada untuk menentukan nomor berikutnya
+    existing_files = list(target_dir.glob("*.jpg"))
+    next_number = len(existing_files) + 1
+    filename = target_dir / f"{next_number}.jpg"
+
+    # Simpan file gambar
+    with open(filename, "wb") as f:
+        f.write(await file.read())
+
+    return {
+        "status": "success",
+        "message": f"Gambar disimpan sebagai {filename.name} di folder {target_dir.name}",
+        "path": filename.as_posix(),
+    }
+
+
 
 # --- KRITIS: APP.MOUNT INI HARUS DI POSISI TERAKHIR (FALLBACK) ---
+
+# Mount folder frontend utama (menangani main.html, data.html, settings.html)
+# Ini berfungsi sebagai rute fallback untuk semua file statis yang belum dihandle oleh API.
 app.mount("/", StaticFiles(directory=str(FRONTEND_STATIC_DIR)), name="frontend")
