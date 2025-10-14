@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepFace Absensi - Pengenalan Wajah</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f7f7;
+            min-height: 100vh;
+        }
+        .container-card {
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            background-color: white;
+            transition: all 0.3s ease;
+        }
+        .glow-effect {
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5); /* Blue glow */
+            border: 2px solid #3b82f6;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 flex flex-col items-center">
+
+    <div class="flex flex-col md:flex-row w-full max-w-7xl mb-8 space-y-4 md:space-y-0 md:space-x-4">
+        <a href="main.html" class="flex-1 p-3 text-center rounded-lg font-semibold bg-blue-600 text-white shadow-md transition hover:bg-blue-700">Absensi Wajah</a>
+        <a href="data.html" class="flex-1 p-3 text-center rounded-lg font-semibold bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Data Absensi Hari Ini</a>
+        <a href="settings.html" class="flex-1 p-3 text-center rounded-lg font-semibold bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Pengaturan & Indexing</a>
+    </div>
+
+    <main class="w-full max-w-4xl container-card p-6 md:p-10 rounded-xl">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 border-b pb-2">Absensi Cepat DeepFace</h1>
+        
+        <div class="mb-6">
+            <label for="cameraSelect" class="block text-sm font-medium text-gray-700 mb-2">Pilih Perangkat Kamera:</label>
+            <select id="cameraSelect" class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md shadow-sm">
+                </select>
+        </div>
+
+        <div class="flex flex-col items-center mb-6">
+            <video id="webcam" class="w-full h-auto rounded-lg mb-4 glow-effect" autoplay playsinline></video>
+            <canvas id="faceCanvas" class="hidden"></canvas>
+            
+            <button id="captureButton" 
+                    class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition duration-300 transform active:scale-95 disabled:bg-gray-400 flex items-center" 
+                    disabled>
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.218A2 2 0 0110.74 4h2.52a2 2 0 011.664.89l.812 1.218a2 2 0 001.664.89H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Ambil Gambar & Absensi
+            </button>
+        </div>
+
+        <div id="statusArea" class="p-4 rounded-lg text-center text-sm md:text-base transition-all duration-500 ease-in-out h-16 flex items-center justify-center bg-gray-100 text-gray-700">
+            Pastikan wajah Anda berada di tengah frame, lalu tekan tombol di atas.
+        </div>
+        
+        <div id="resultDetails" class="mt-6 p-4 border border-gray-200 rounded-lg hidden">
+            <h3 class="font-semibold text-lg mb-2 text-blue-600">Detail Hasil Deteksi</h3>
+            <p><span class="font-medium">Nama:</span> <span id="resName"></span></p>
+            <p><span class="font-medium">Instansi:</span> <span id="resInstansi"></span></p>
+            <p><span class="font-medium">Kategori:</span> <span id="resKategori"></span></p> 
+            <p><span class="font-medium">Waktu:</span> <span id="resTime"></span></p>
+            <p><span class="font-medium">Jarak Vektor:</span> <span id="resDistance"></span></p>
+            <p><span class="font-medium">Latensi:</span> <span id="resLatency"></span></p>
+            <div class="mt-4">
+                <span class="font-medium block mb-1">Foto Absensi:</span>
+                <img id="resImage" src="" alt="Foto Absensi" class="w-24 h-24 object-cover rounded-md shadow-md">
+            </div>
+        </div>
+
+    </main>
+    
+    <audio id="audioPlayer" class="hidden"></audio>
+
+    <script>
+        // --- KONFIGURASI ---
+        // URL server FastAPI di PC Anda.
+        const API_BASE_URL = "http://127.0.0.1:8000"; 
+        const CAMERA_WIDTH = 640;
+        const CAMERA_HEIGHT = 480;
+
+        // --- ELEMEN DOM (Pastikan ID ini sesuai dengan HTML di atas) ---
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('faceCanvas');
+        const captureButton = document.getElementById('captureButton');
+        const statusArea = document.getElementById('statusArea');
+        const audioPlayer = document.getElementById('audioPlayer');
+        const cameraSelect = document.getElementById('cameraSelect');
+
+        const resultDetails = document.getElementById('resultDetails');
+        const resName = document.getElementById('resName'); 
+        const resInstansi = document.getElementById('resInstansi'); 
+        const resKategori = document.getElementById('resKategori'); 
+        const resTime = document.getElementById('resTime');
+        const resDistance = document.getElementById('resDistance');
+        const resLatency = document.getElementById('resLatency');
+        const resImage = document.getElementById('resImage');
+
+        let currentStream = null;
+
+        // --- FUNGSI UTILITY ---
+
+        /** Menampilkan pesan status di UI */
+        function updateStatus(message, type = 'info') {
+            let bgColor, textColor;
+            switch (type) {
+                case 'success':
+                    bgColor = 'bg-green-100';
+                    textColor = 'text-green-700';
+                    break;
+                case 'error':
+                    bgColor = 'bg-red-100';
+                    textColor = 'text-red-700';
+                    break;
+                case 'warning':
+                    bgColor = 'bg-yellow-100';
+                    textColor = 'text-yellow-700';
+                    break;
+                case 'info':
+                default:
+                    bgColor = 'bg-gray-100';
+                    textColor = 'text-gray-700';
+                    break;
+            }
+            statusArea.className = `p-4 rounded-lg text-center text-sm md:text-base transition-all duration-500 ease-in-out h-16 flex items-center justify-center ${bgColor} ${textColor}`;
+            statusArea.innerHTML = `<strong>${message}</strong>`;
+        }
+
+        /** Memutar file audio dari server */
+        function playAudio(trackId) {
+            const audioUrl = `${API_BASE_URL}/audio/${trackId}`;
+            const audio = new Audio(audioUrl);
+    
+            audio.setAttribute('playsinline', ''); 
+    
+            audio.play()
+                .then(() => {
+                console.log("Audio berhasil diputar.");
+                })
+                .catch(error => {
+                    console.error("Gagal memutar audio. Kemungkinan diblokir oleh Autoplay Policy:", error);
+                    // Tampilkan pesan ke pengguna: "Harap klik layar untuk mengaktifkan suara."
+                });
+        }
+
+        /** Menampilkan detail hasil di UI */
+        function displayResult(data, image_url) {
+            const now = new Date();
+            resName.textContent = data.name || "N/A";
+            // Akses data.instansi dan data.kategori dari response API
+            resInstansi.textContent = data.instansi || "N/A"; 
+            resKategori.textContent = data.kategori || "N/A";
+            resTime.textContent = now.toLocaleTimeString('id-ID');
+            resDistance.textContent = data.distance || "N/A";
+            resLatency.textContent = data.latency || "N/A";
+            
+            // Tampilkan gambar dari server
+            if (image_url) {
+                // Pastikan image_url adalah path relatif, jika tidak, hapus API_BASE_URL
+                resImage.src = `${API_BASE_URL}${image_url}`; 
+                resImage.classList.remove('hidden');
+            } else {
+                resImage.classList.add('hidden');
+            }
+            
+            resultDetails.classList.remove('hidden');
+        }
+
+        // --- LOGIKA WEBCAM & DETEKSI PERANGKAT (FITUR INTEGRASI EKSTERNAL) ---
+
+        /** Mendapatkan daftar perangkat kamera yang tersedia */
+        async function getDevices() {
+            try {
+                // Minta izin akses media agar browser dapat melihat daftar perangkat
+                await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+                
+                const devices = await navigator.mediaDevices.enumerateDevices();
+                const videoDevices = devices.filter(device => device.kind === 'videoinput');
+                
+                // Kosongkan dan isi ulang dropdown
+                cameraSelect.innerHTML = ''; 
+                if (videoDevices.length === 0) {
+                    updateStatus("❌ Tidak ada perangkat kamera yang terdeteksi. Pastikan webcam terhubung.", 'error');
+                    captureButton.disabled = true;
+                    return;
+                }
+
+                videoDevices.forEach(device => {
+                    const option = document.createElement('option');
+                    option.value = device.deviceId;
+                    // Tampilkan label perangkat (misalnya, "Webcam Eksternal Pro")
+                    option.textContent = device.label || `Kamera ${cameraSelect.options.length + 1} (Default)`;
+                    cameraSelect.appendChild(option);
+                });
+
+                // Mulai stream dengan kamera pertama secara default (atau yang dipilih)
+                if (videoDevices.length > 0) {
+                    startStream(videoDevices[0].deviceId);
+                }
+
+            } catch (err) {
+                updateStatus(`❌ Gagal mengakses perangkat media: ${err.message}. Mohon berikan izin kamera.`, 'error');
+                console.error("Error accessing media devices:", err);
+                captureButton.disabled = true;
+            }
+        }
+
+        /** Memulai atau mengganti stream video ke perangkat tertentu */
+        async function startStream(deviceId) {
+            if (currentStream) {
+                // Hentikan track stream yang lama sebelum memulai yang baru
+                currentStream.getTracks().forEach(track => track.stop());
+            }
+
+            const constraints = {
+                video: {
+                    deviceId: deviceId ? { exact: deviceId } : undefined,
+                    width: { ideal: CAMERA_WIDTH },
+                    height: { ideal: CAMERA_HEIGHT }
+                }
+            };
+
+            try {
+                currentStream = await navigator.mediaDevices.getUserMedia(constraints);
+                video.srcObject = currentStream;
+                video.onloadedmetadata = () => {
+                    video.play();
+                    // Atur dimensi canvas setelah video dimuat
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    captureButton.disabled = false;
+                    updateStatus("✅ Kamera siap. Silakan posisikan wajah Anda.", 'info');
+                };
+            } catch (err) {
+                updateStatus(`❌ Gagal memulai stream: ${err.message}. Pastikan kamera tidak digunakan aplikasi lain.`, 'error');
+                console.error("Error starting stream:", err);
+                captureButton.disabled = true;
+            }
+        }
+        
+        // Listener saat pemilihan kamera berubah
+        cameraSelect.addEventListener('change', (event) => {
+            const selectedDeviceId = event.target.value;
+            startStream(selectedDeviceId);
+        });
+
+        // --- LOGIKA ABSENSI ---
+
+        /** Mengambil gambar dari webcam dan mengirimkannya ke API */
+        async function captureAndRecognize() {
+            if (!currentStream) {
+                updateStatus("Kamera belum aktif. Mohon tunggu.", 'warning');
+                return;
+            }
+
+            captureButton.disabled = true;
+            updateStatus("⏳ Sedang memproses absensi... Mohon tunggu.", 'info');
+            resultDetails.classList.add('hidden');
+
+            const context = canvas.getContext('2d');
+            
+            // Gambar frame video ke canvas
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+            // Konversi canvas ke Blob (format JPEG) untuk dikirim ke API
+            canvas.toBlob(async (blob) => {
+                const formData = new FormData();
+                formData.append('file', blob, 'capture.jpg');
+
+                try {
+                    const response = await fetch(`${API_BASE_URL}/recognize`, {
+                        method: 'POST',
+                        body: formData,
+                    });
+
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+
+                    const data = await response.json();
+                    
+                    let statusType = 'info';
+                    let message = data.message || "Deteksi selesai.";
+                    let image_url = data.image_url;
+
+                    if (data.status === 'success') {
+                        statusType = 'success';
+                        message = `Absensi Berhasil! Selamat datang, ${data.name}.`;
+                        displayResult(data, image_url);
+                    } else if (data.status === 'duplicate') {
+                        statusType = 'warning';
+                        message = `Perhatian: ${data.name} sudah absen hari ini.`;
+                        displayResult(data, image_url);
+                    } else if (data.status === 'unrecognized') {
+                        statusType = 'error';
+                        message = `Wajah tidak dikenal. ${data.message}`;
+                    } else {
+                        statusType = 'error';
+                        message = `Kesalahan: ${data.message || 'Respons API tidak terduga.'}`;
+                    }
+                    
+                    updateStatus(message, statusType);
+                    
+                    // Putar audio jika ada track_id
+                    if (data.track_id) {
+                        playAudio(data.track_id);
+                    }
+
+                } catch (error) {
+                    console.error('Error saat mengirim data ke API:', error);
+                    updateStatus(`❌ Gagal terhubung ke server API: ${error.message}. Pastikan server FastAPI (main.py) sedang berjalan.`, 'error');
+                } finally {
+                    captureButton.disabled = false;
+                }
+            }, 'image/jpeg', 0.9); 
+        }
+
+        // --- INISIALISASI ---
+        window.onload = () => {
+            captureButton.addEventListener('click', captureAndRecognize);
+            getDevices(); // Mulai deteksi perangkat saat halaman dimuat
+        };
+
+    </script>
+</body>
+</html>

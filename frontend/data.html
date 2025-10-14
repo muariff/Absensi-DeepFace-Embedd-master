@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DeepFace Absensi - Data Hari Ini</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f7f7;
+            min-height: 100vh;
+        }
+        .container-card {
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.05);
+            background-color: white;
+            transition: all 0.3s ease;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 flex flex-col items-center">
+
+    <div class="flex flex-col md:flex-row w-full max-w-7xl mb-8 space-y-4 md:space-y-0 md:space-x-4">
+        <a href="main.html" class="flex-1 p-3 text-center rounded-lg font-semibold bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Absensi Wajah</a>
+        <a href="data.html" class="flex-1 p-3 text-center rounded-lg font-semibold bg-blue-600 text-white shadow-md transition hover:bg-blue-700">Data Absensi Hari Ini</a>
+        <a href="settings.html" class="flex-1 p-3 text-center rounded-lg font-semibold bg-gray-200 text-gray-700 hover:bg-gray-300 transition">Pengaturan & Indexing</a>
+    </div>
+
+    <main class="w-full max-w-7xl container-card p-6 md:p-10 rounded-xl">
+        <div class="flex justify-between items-center mb-6 border-b pb-2">
+            <h1 class="text-3xl font-bold text-gray-800">Data Absensi Hari Ini</h1>
+            <button id="refreshButton" class="bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg shadow-md transition duration-300 flex items-center">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                    <path fill-rule="evenodd" d="M4 2a1 1 0 011 1v2.101a7.002 7.002 0 0110.801 7.39l-2.484-1.99a5 5 0 00-7.317-5.748L5.783 8.356a1 1 0 01-.84.281l-1.892-.379a1 1 0 01-.58-.87l.21-1.048a1 1 0 011-1.111zm11 15a1 1 0 01-1-1v-2.101a7.002 7.002 0 01-10.801-7.39l2.484 1.99a5 5 0 007.317 5.748l-.782-.782a1 1 0 01.84-.281l1.892.379a1 1 0 01.58.87l-.21 1.048a1 1 0 01-1 1.111z" clip-rule="evenodd" />
+                </svg>
+                Refresh Data
+            </button>
+        </div>
+        
+        <div id="statusArea" class="mb-4 p-3 rounded-lg text-center text-sm bg-gray-100 text-gray-700">
+            Memuat data absensi hari ini...
+        </div>
+
+        <div class="overflow-x-auto rounded-lg shadow-lg">
+            <table class="min-w-full divide-y divide-gray-200">
+                <thead class="bg-blue-500 text-white">
+                    <tr>
+                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">No.</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Nama</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Instansi</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Kategori</th> <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Waktu Absen</th>
+                        <th class="px-6 py-3 text-left text-xs font-medium uppercase tracking-wider">Jarak Vektor</th>
+                        <th class="px-6 py-3 text-center text-xs font-medium uppercase tracking-wider">Foto</th>
+                    </tr>
+                </thead>
+                <tbody id="attendanceTableBody" class="bg-white divide-y divide-gray-200">
+                    </tbody>
+            </table>
+        </div>
+
+    </main>
+
+    <script>
+        // --- KONFIGURASI ---
+        const API_BASE_URL = "http://127.0.0.1:8000"; 
+
+        // --- ELEMEN DOM ---
+        const statusArea = document.getElementById('statusArea');
+        const attendanceTableBody = document.getElementById('attendanceTableBody');
+        const refreshButton = document.getElementById('refreshButton');
+
+        // --- FUNGSI UTILITY ---
+
+        /** Menampilkan pesan status di UI */
+        function updateStatus(message, type = 'info') {
+            let bgColor, textColor;
+            switch (type) {
+                case 'error':
+                    bgColor = 'bg-red-100';
+                    textColor = 'text-red-700';
+                    break;
+                case 'info':
+                default:
+                    bgColor = 'bg-gray-100';
+                    textColor = 'text-gray-700';
+                    break;
+            }
+            statusArea.className = `mb-4 p-3 rounded-lg text-center text-sm ${bgColor} ${textColor}`;
+            statusArea.innerHTML = message;
+        }
+
+        /** Mengambil data absensi hari ini dari API */
+        async function fetchTodayAttendance() {
+            updateStatus("⏳ Memuat data absensi...");
+            attendanceTableBody.innerHTML = ''; 
+
+            try {
+                const response = await fetch(`${API_BASE_URL}/attendance/today`);
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+                
+                if (data.length === 0) {
+                    updateStatus("Belum ada absensi tercatat hari ini.", 'info');
+                    return;
+                }
+
+                renderTable(data);
+                updateStatus(`✅ Berhasil memuat ${data.length} data absensi.`, 'info');
+
+            } catch (error) {
+                console.error('Error saat mengambil data:', error);
+                updateStatus(`❌ Gagal terhubung ke server API: ${error.message}. Pastikan server FastAPI (main.py) sedang berjalan.`, 'error');
+            }
+        }
+
+        /** Mengisi tabel dengan data yang diterima */
+        function renderTable(data) {
+            let html = '';
+            data.forEach((item, index) => {
+                // Perhatian: Pastikan backend Anda mengirimkan 'foto_absensi_path' atau 'image_path'
+                const photoUrl = `${API_BASE_URL}${item.foto_absensi_path || item.image_path}`; 
+                
+                // Perbaikan format waktu
+                const displayTime = item.waktu_absensi 
+                    ? item.waktu_absensi 
+                    : item.timestamp 
+                        ? new Date(item.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit', second: '2-digit' })
+                        : 'N/A';
+                
+                // Periksa apakah item.jarak_vektor ada dan format sebagai float
+                const displayDistance = item.jarak_vektor ? parseFloat(item.jarak_vektor).toFixed(4) : 'N/A';
+
+                html += `
+                    <tr class="hover:bg-gray-50 transition duration-150 ease-in-out">
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">${index + 1}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-700 font-semibold">${item.name || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.instansi || 'N/A'}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${item.kategori || 'N/A'}</td> <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${displayTime}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-500">${displayDistance}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-center text-sm font-medium">
+                            <img src="${photoUrl}" alt="Foto Absen ${item.name}" class="h-10 w-10 rounded-full object-cover mx-auto shadow-sm cursor-pointer" onclick="showImageModal('${photoUrl}')">
+                        </td>
+                    </tr>
+                `;
+            });
+            attendanceTableBody.innerHTML = html;
+        }
+        
+        /** Menampilkan modal gambar (simulasi) */
+        function showImageModal(url) {
+            alert(`Membuka foto absensi di URL: ${url}. (Fungsi modal belum terimplementasi penuh)`);
+        }
+
+
+        // --- INISIALISASI ---
+        window.onload = () => {
+            fetchTodayAttendance();
+            refreshButton.addEventListener('click', fetchTodayAttendance);
+        };
+
+    </script>
+</body>
+</html>
