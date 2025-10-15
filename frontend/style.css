@@ -44,11 +44,24 @@ body {
 }
 
 .sidebar-link {
-  text-align: left;
+  display: flex;
+  align-items: center;
+  gap: 10px;
   font-weight: 600;
   border-radius: 8px;
-  padding: 10px;
-  transition: background 0.3s;
+  padding: 10px 14px;
+  transition: background 0.3s, color 0.3s;
+  color: #333;
+  text-decoration: none;
+}
+
+.sidebar-icon {
+  width: 22px;
+  height: 22px;
+  object-fit: contain;
+  flex-shrink: 0;
+  opacity: 0.8;
+  transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
 .sidebar-link:hover {
@@ -56,10 +69,21 @@ body {
   color: white;
 }
 
+.sidebar-link:hover .sidebar-icon {
+  opacity: 1;
+  transform: scale(1.05);
+  filter: brightness(0) invert(1);
+}
+
 .sidebar-link.active {
   background-color: #81130d;
   color: white;
   box-shadow: 0 3px 6px rgba(129, 19, 13, 0.4);
+}
+
+.sidebar-link.active .sidebar-icon {
+  opacity: 1;
+  filter: brightness(0) invert(1);
 }
 
 .layout-main {
@@ -173,7 +197,7 @@ td img {
 
 .layout-footer {
   width: 100%;
-  height: 40px;
+  height: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
